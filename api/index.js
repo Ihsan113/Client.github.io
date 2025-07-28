@@ -1,10 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const fs = require('fs'); // Tetap gunakan
+const path = require('path'); // Tetap gunakan
 const axios = require('axios');
 const app = express();
-
 
 app.use(cors());
 app.use(express.json());
@@ -13,13 +12,34 @@ app.use(express.json());
 // Ambil key_user dan fee dari key.json
 // ===============================
 const keyPath = path.join(__dirname, 'key.json');
-const { key_user, fee: fee_client } = JSON.parse(fs.readFileSync(keyPath));
-const feePersen = parseFloat(fee_client); // tetap digunakan untuk produk-client
+let key_user;
+let fee_client;
+let feePersen;
+
+try {
+  const keyConfig = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+  key_user = keyConfig.key_user;
+  fee_client = keyConfig.fee; // Asumsi 'fee' di key.json adalah string atau number
+  feePersen = parseFloat(fee_client);
+
+  // Validasi sederhana
+  if (!key_user || isNaN(feePersen)) {
+    console.error("ERROR: key_user atau fee (harus angka) di key.json tidak valid.");
+    // Opsional: Anda bisa memutuskan untuk menghentikan aplikasi jika konfigurasi vital tidak ada
+    // process.exit(1);
+  }
+} catch (error) {
+  console.error("ERROR: Gagal membaca atau memparsing key.json.");
+  console.error(error.message);
+  // Opsional: Jika key.json sangat krusial, Anda bisa menghentikan aplikasi di sini
+  // process.exit(1);
+}
 
 // ============================
 // Endpoint Produk + Hitung Fee
+// URL akan menjadi /api/produk-client
 // ============================
-app.post('/produk-client', async (req, res) => {
+app.post('/api/produk-client', async (req, res) => {
   const { name } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name wajib diisi' });
@@ -39,8 +59,7 @@ app.post('/produk-client', async (req, res) => {
       return {
         ...item,
         fee: feeNominal,
-        price: totalPrice 
-        
+        price: totalPrice
       };
     });
 
@@ -57,8 +76,9 @@ app.post('/produk-client', async (req, res) => {
 
 // ==========================
 // Endpoint Kirim Transaksi
+// URL akan menjadi /api/transaksi
 // ==========================
-app.post('/transaksi', async (req, res) => {
+app.post('/api/transaksi', async (req, res) => {
   const data = req.body;
 
   console.log('=== [LOG] Transaksi Masuk ===');
@@ -97,7 +117,7 @@ app.post('/transaksi', async (req, res) => {
 });
 
 // ==========================
-// Default Route
+// Default Route untuk Vercel Serverless Function
 // ==========================
-module.exports = app;
+// Ini adalah cara yang benar untuk mengekspor aplikasi Express agar Vercel bisa menanganinya
 module.exports = (req, res) => app(req, res);
