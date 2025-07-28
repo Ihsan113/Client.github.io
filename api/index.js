@@ -12,7 +12,8 @@ app.use(express.json());
 // ===============================
 // Ambil key_user dan fee dari key.json
 // ===============================
-const keyPath = path.join(__dirname, 'key.json');
+// Untuk mencari file di root proyek Vercel
+const keyPath = path.join(process.cwd(), 'key.json');
 const { key_user, fee: fee_client } = JSON.parse(fs.readFileSync(keyPath));
 const feePersen = parseFloat(fee_client); // tetap digunakan untuk produk-client
 
