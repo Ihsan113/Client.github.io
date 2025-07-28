@@ -107,7 +107,7 @@ app.post('/api/transaksi', async (req, res) => {
       reff_id,
       key_user, // key_user dari key.json (global di client.js)
       fee_client, // fee_client dari key.json (global di client.js)
-      fee_by_customer: "false", // Sesuaikan jika ingin ForestAPI membebankan fee ke customer mereka
+      fee_by_customer: "true", // UBAH INI JADI "true"
       provider,
       code,
     };
