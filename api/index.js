@@ -12,13 +12,12 @@ app.use(express.json());
 // ===============================
 // Ambil key_user dan fee dari key.json
 // ===============================
-// Untuk mencari file di root proyek Vercel
-const keyPath = path.join(process.cwd(), 'key.json');
+const keyPath = path.join(__dirname, 'key.json');
 const { key_user, fee: fee_client } = JSON.parse(fs.readFileSync(keyPath));
-const feePersen = parseFloat(fee_client); // tetap digunakan untuk produk-client
+// const feePersen = parseFloat(fee_client); // Baris ini tidak lagi diperlukan jika Anda tidak ingin markup ganda
 
 // ============================
-// Endpoint Produk + Hitung Fee
+// Endpoint Produk + Hitung Fee (Hapus perhitungan fee di sini)
 // ============================
 app.post('/api/produk-client', async (req, res) => {
   const { name } = req.body;
@@ -31,19 +30,11 @@ app.post('/api/produk-client', async (req, res) => {
 
   try {
     const response = await axios.post('http://139.59.122.34:1054/produk', { name });
-    const produkList = response.data;
+    const produkList = response.data; // ProdukList ini sudah memiliki harga yang benar (misal: 1036)
 
-    const finalProduk = produkList.map(item => {
-      const feeNominal = Math.round(item.price * (feePersen / 100));
-      const totalPrice = Math.ceil(item.price + feeNominal); // dibulatkan ke atas
-
-      return {
-        ...item,
-        fee: feeNominal,
-        price: totalPrice 
-        
-      };
-    });
+    // Hapus logika .map() yang menambahkan fee kedua kali.
+    // Cukup kembalikan produkList apa adanya dari server utama.
+    const finalProduk = produkList; 
 
     console.log('=== [LOG] Produk Final ===');
     console.log(JSON.stringify(finalProduk, null, 2));
@@ -70,7 +61,7 @@ app.post('/api/transaksi', async (req, res) => {
     const payload = {
       ...data,
       key_user,
-      fee_client,
+      fee_client, // Ini tetap dikirimkan ke server utama, tapi nilainya (1%) sudah ditambahkan di 'price'
       fee_by_customer: "false"
     };
 
