@@ -10,14 +10,16 @@ app.use(cors());
 app.use(express.json());
 
 // ===============================
-// Ambil key_user dan fee dari key.json
+// Ambil key_user dan fee dari key.json (Harus ada di direktori yang sama)
 // ===============================
 const keyPath = path.join(__dirname, 'key.json');
 const { key_user, fee: fee_client } = JSON.parse(fs.readFileSync(keyPath));
-// const feePersen = parseFloat(fee_client); // Baris ini tidak lagi diperlukan jika Anda tidak ingin markup ganda
+
+// URL server utama (index.js) Anda. Pastikan IP dan Port sudah benar.
+const MAIN_SERVER_URL = 'http://139.59.122.34:1054'; 
 
 // ============================
-// Endpoint Produk + Hitung Fee (Hapus perhitungan fee di sini)
+// Endpoint Produk (Proxy ke Server Utama)
 // ============================
 app.post('/api/produk-client', async (req, res) => {
   const { name } = req.body;
@@ -25,52 +27,98 @@ app.post('/api/produk-client', async (req, res) => {
     return res.status(400).json({ error: 'name wajib diisi' });
   }
 
-  console.log('=== [LOG] Request Produk ===');
+  console.log('=== [LOG client.js] Request Produk dari Frontend ===');
   console.log(JSON.stringify({ name }, null, 2));
 
   try {
-    const response = await axios.post('http://139.59.122.34:1054/produk', { name });
-    const produkList = response.data; // ProdukList ini sudah memiliki harga yang benar (misal: 1036)
+    // Memanggil endpoint /produk di server utama (index.js)
+    const response = await axios.post(`${MAIN_SERVER_URL}/produk`, { name });
+    const produkList = response.data; // ProdukList ini sudah memiliki harga yang sudah dimarkup oleh index.js
 
-    // Hapus logika .map() yang menambahkan fee kedua kali.
-    // Cukup kembalikan produkList apa adanya dari server utama.
-    const finalProduk = produkList; 
+    console.log('=== [LOG client.js] Produk Final dari Server Utama ===');
+    console.log(JSON.stringify(produkList, null, 2));
 
-    console.log('=== [LOG] Produk Final ===');
-    console.log(JSON.stringify(finalProduk, null, 2));
-
-    res.json(finalProduk);
+    res.json(produkList);
   } catch (err) {
-    console.error('=== [ERROR] Gagal ambil produk ===');
+    console.error('=== [ERROR client.js] Gagal ambil produk dari server utama ===');
     console.error(err.message);
     res.status(500).json({ error: 'Gagal mengambil data produk dari server pusat' });
   }
 });
 
+// ============================
+// Endpoint Deposit Methods (Proxy ke Server Utama)
+// ============================
+app.get('/api/deposit-methods-client', async (req, res) => {
+  console.log('=== [LOG client.js] Request Deposit Methods dari Frontend ===');
+  try {
+    // Memanggil endpoint /deposit-methods di server utama (index.js)
+    const response = await axios.get(`${MAIN_SERVER_URL}/deposit-methods`);
+    
+    console.log('=== [LOG client.js] Deposit Methods dari Server Utama ===');
+    console.log(JSON.stringify(response.data, null, 2));
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('=== [ERROR client.js] Gagal ambil deposit methods dari server utama ===');
+    console.error(err.message);
+    res.status(500).json({ error: 'Gagal mengambil metode deposit dari server pusat' });
+  }
+});
+
+
 // ==========================
-// Endpoint Kirim Transaksi
+// Endpoint Kirim Transaksi (Proxy ke Server Utama)
 // ==========================
 app.post('/api/transaksi', async (req, res) => {
-  const data = req.body;
+  const data = req.body; // Data yang dikirim dari frontend/mobile Anda
 
-  console.log('=== [LOG] Transaksi Masuk ===');
+  console.log('=== [LOG client.js] Transaksi Masuk dari Frontend ===');
   console.log(JSON.stringify(data, null, 2));
 
+  // Pastikan semua data yang dibutuhkan oleh server utama (index.js) ada
+  const {
+    target,
+    nama,
+    price,    // Harga produk setelah markup 1% Anda
+    fee,      // Fee manual yang dimasukkan klien
+    nominal,  // Total nominal yang dihitung di frontend (harga + fee + biaya deposit ForestAPI)
+    email,
+    nickname,
+    metode,
+    note,
+    reff_id,
+    provider,
+    code,
+  } = data;
+
   try {
-    // fee_client diambil langsung dari key.json
-    const payload = {
-      ...data,
-      key_user,
-      fee_client, // Ini tetap dikirimkan ke server utama, tapi nilainya (1%) sudah ditambahkan di 'price'
-      fee_by_customer: "false"
+    // Payload yang akan dikirim ke server utama (index.js)
+    const payloadToMainServer = {
+      target,
+      nama,
+      price: parseFloat(price), 
+      fee: parseFloat(fee || 0), 
+      nominal: parseFloat(nominal),
+      email,
+      nickname,
+      metode,
+      note,
+      reff_id,
+      key_user, // key_user dari key.json (global di client.js)
+      fee_client, // fee_client dari key.json (global di client.js)
+      fee_by_customer: "false", // Sesuaikan jika ingin ForestAPI membebankan fee ke customer mereka
+      provider,
+      code,
     };
 
-    console.log('=== [LOG] Payload ke Server Pusat ===');
-    console.log(JSON.stringify(payload, null, 2));
+    console.log('=== [LOG client.js] Payload ke Server Utama ===');
+    console.log(JSON.stringify(payloadToMainServer, null, 2));
 
-    const response = await axios.post('http://139.59.122.34:1054/api/h2h/deposit/create', payload);
+    // Memanggil endpoint /api/h2h/deposit/create di server utama (index.js)
+    const response = await axios.post(`${MAIN_SERVER_URL}/api/h2h/deposit/create`, payloadToMainServer);
 
-    console.log('=== [LOG] Respon dari Server Pusat ===');
+    console.log('=== [LOG client.js] Respon dari Server Utama ===');
     console.log(JSON.stringify(response.data, null, 2));
 
     res.json({
@@ -78,12 +126,13 @@ app.post('/api/transaksi', async (req, res) => {
       ...response.data
     });
   } catch (error) {
-    console.error('=== [ERROR] Gagal kirim transaksi ===');
+    console.error('=== [ERROR client.js] Gagal kirim transaksi ke server utama ===');
     console.error(error.message);
-    res.status(500).json({
+    // Teruskan error dari server utama jika ada, agar frontend bisa tahu
+    res.status(error.response?.status || 500).json({
       success: false,
       message: 'Gagal mengirim ke server pusat',
-      error: error?.response?.data || error.message
+      error: error.response?.data || error.message
     });
   }
 });
@@ -92,12 +141,14 @@ app.post('/api/transaksi', async (req, res) => {
 // Default Route
 // ==========================
 app.get('/', (req, res) => {
-  res.send('Server berjalan');
+  res.send('Server client (proxy) berjalan');
 });
 
 
-// ==========================
-// Default Route
-// ==========================
+// Export app untuk Vercel/similar environments
 module.exports = app;
-module.exports = (req, res) => app(req, res);
+
+// Jika Anda menjalankan client.js ini secara lokal dengan `node client.js`,
+// Anda bisa uncomment baris di bawah ini dan sesuaikan PORT jika perlu.
+// const CLIENT_PORT = process.env.PORT || 3000; 
+// app.listen(CLIENT_PORT, () => console.log(`Client server berjalan di port ${CLIENT_PORT}`));
