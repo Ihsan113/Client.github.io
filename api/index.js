@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const app = express();
-const PORT = 5050;
+
 
 app.use(cors());
 app.use(express.json());
@@ -99,10 +99,5 @@ app.post('/transaksi', async (req, res) => {
 // ==========================
 // Default Route
 // ==========================
-app.get('/', (req, res) => {
-  res.send('Server berjalan di http://localhost:5050');
-});
-
-app.listen(PORT, () => {
-  console.log(`Server client berjalan di http://localhost:${PORT}`);
-});
+module.exports = app;
+module.exports = (req, res) => app(req, res);
