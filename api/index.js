@@ -137,7 +137,7 @@ app.post('/api/transaksi', async (req, res) => {
   }
 });
 
-app.post('/proxy/check-id', async (req, res) => {
+app.post('/api/proxy/check-id', async (req, res) => {
   const { type_name, userId, zoneId } = req.body;
 
   try {
