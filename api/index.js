@@ -100,7 +100,7 @@ app.post('/api/transaksi', async (req, res) => {
 // Default Route
 // ==========================
 app.get('/', (req, res) => {
-  res.send('Server berjalan);
+  res.send('Server berjalan');
 });
 
 
