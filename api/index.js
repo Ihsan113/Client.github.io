@@ -137,6 +137,23 @@ app.post('/api/transaksi', async (req, res) => {
   }
 });
 
+app.post('/proxy/check-id', async (req, res) => {
+  const { type_name, userId, zoneId } = req.body;
+
+  try {
+    const response = await axios.post('https://api-cek-id-game-ten.vercel.app/api/check-id-game', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { type_name, userId, zoneId }
+    });
+
+    const data = response.data;
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil data dari API utama' });
+  }
+});
+
 // ==========================
 // Default Route
 // ==========================
