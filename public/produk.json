@@ -1,0 +1,62 @@
+[
+  {
+    "name": "MOBILE LEGENDS",
+    "publisher": "Moonton",
+    "category": "Games",
+    "input_type": "id&server_id",
+    "link": "cekout.html?game=ml",
+    "code": "ml",
+    "note": "Masukkan ID & Server ID Anda.",
+    "img": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUEx7Wk_6Gw46o0Lx_faoloaLxFwcgSwE6ZRQ3MMdFFkx1L09gr0Mz19Pz&s=10"
+  },
+  {
+    "name": "FREE FIRE",
+    "publisher": "Garena",
+    "category": "Games",
+    "input_type": "id",
+    "link": "cekout.html?game=ff",
+    "code": "ff",
+    "note": "Masukkan ID Anda.",
+    "img": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPW8iVjUvQ28yGYr4kgvnZ9-3_IyCYDCXhqPHoAaASrDEYTqEsVrp2Wm4&s=10"
+  },
+  {
+    "name": "PUBG MOBILE",
+    "publisher": "PUBG Corporation",
+    "category": "Games",
+    "input_type": "id",
+    "link": "cekout.html?game=pubg",
+    "code": "pubg",
+    "note": "Masukkan ID Anda.",
+    "img": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRT2uKhKt9-M7bRaA8J___zz1BrBwIgofoJ50D5MpGM2TH8pnYrcKdWJ9vC&s=10"
+  },
+  {
+    "name": "GENSHIN IMPACT",
+    "publisher": "miHoYo",
+    "category": "Games",
+    "input_type": "id&server_id_khusus",
+    "link": "cekout.html?game=genshin",
+    "code": "genshin",
+    "note": "Masukkan UID & Pilih Server.",
+    "img": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR45wvhPB4GCgswKa5K4EhmSt5pV7i2M_2lFeX614Xi8aesTYC5HPnWnYk&s=10"
+  },
+  {
+    "name": "HONKAI IMPACT 3",
+    "publisher": "miHoYo",
+    "category": "Games",
+    "input_type": "id&server_id_khusus",
+    "link": "cekout.html?game=honkai",
+    "code": "honkai",
+    "note": "Masukkan UID & Pilih Server.",
+    "img": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTWsa7zUmNb1bpm3B6DB5ynjn573hoZMlU00QnlVoi_sBuJzmkJT48E_c-5&s=10"
+  },
+  {
+    "name": "CALL OF DUTY MOBILE",
+    "publisher": "Infinity Ward",
+    "category": "Games",
+    "input_type": "id",
+    "link": "cekout.html?game=cod",
+    "code": "cod",
+    "note": "Masukkan ID Anda.",
+    "img": "https://upload.wikimedia.org/wikipedia/id/8/87/Call_of_Duty_Infinite_Warfare_cover.jpg"
+  }
+]

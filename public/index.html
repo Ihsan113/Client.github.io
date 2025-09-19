@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DanzKu - UI/UX Modern</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+    body {
+      font-family: 'Roboto', sans-serif;
+      position: relative;
+      overflow-x: hidden;
+      background-color: #121212;
+    }
+    .hover\:text-accent:hover { color: #2dd4bf; }
+    .bg-accent { background-color: #2dd4bf; }
+    
+    /* Header */
+    header {
+      background: linear-gradient(135deg, #1f2937, #4b5563);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+      backdrop-filter: blur(8px);
+    }
+    header .logo {
+      font-weight: 700;
+      color: #2dd4bf;
+      text-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    }
+    
+    /* Mobile Hamburger Menu */
+    #mobile-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+    }
+    #menu-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+    }
+    #menu-content {
+      position: relative;
+      width: 70%;
+      max-width: 320px;
+      height: 100%;
+      background-color: #1f2937;
+      backdrop-filter: blur(8px);
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+      overflow-y: auto;
+    }
+    #mobile-menu.active {
+      display: block;
+    }
+    #mobile-menu.active #menu-content {
+      transform: translateX(0);
+    }
+    #menu-content nav a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1rem;
+    }
+    
+    /* Search Overlay */
+    #search-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      backdrop-filter: blur(10px);
+      background: rgba(17,24,39,0.95);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem;
+      padding-top: 3rem;
+      opacity: 0;
+      overflow-y: auto;
+      transition: opacity 0.3s ease;
+    }
+    #search-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+    #close-search {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      z-index: 110;
+    }
+    #overlay-search {
+      transition: transform 0.3s ease;
+    }
+    #overlay-search:focus {
+      transform: scale(1.02);
+    }
+    
+    /* Game Card */
+    .game-card {
+      backdrop-filter: blur(5px);
+      background: rgba(31,41,55,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 0.5rem;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .game-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    
+    /* Search Result */
+    .search-result {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background-color: #1f2937;
+      border-radius: 0.75rem;
+      transition: transform 0.2s ease, background-color 0.2s ease;
+      font-size: 1rem;
+    }
+    .search-result:hover {
+      background-color: #2dd4bf20;
+      transform: scale(1.01);
+    }
+    .search-result img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 0.5rem;
+    }
+    .search-result .result-text {
+      flex: 1;
+      font-size: 1rem;
+      color: #f9fafb;
+    }
+    
+    .search-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: #f9fafb;
+      text-align: left;
+      width: 100%;
+    }
+    
+    /* Button Style */
+    .ios-btn {
+      padding: 0.75rem 1.25rem;
+      border-radius: 9999px;
+      background-color: #2dd4bf;
+      color: #1f2937;
+      font-weight: 700;
+      transition: background-color 0.2s ease;
+      font-size: 1rem;
+    }
+    .ios-btn:hover {
+      background-color: #22c3a2;
+    }
+    
+    /* Footer */
+    footer {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+    }
+    footer h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    /* Slider */
+    .slider-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    #slider {
+      display: flex;
+      transition: transform 0.7s ease-in-out;
+      touch-action: pan-x;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+  <header class="shadow-2xl">
+    <div class="container mx-auto flex justify-between items-center p-4">
+      <div class="logo text-2xl">DanzKu</div>
+      <div class="flex items-center gap-4">
+        <button id="mobile-search-btn" class="focus:outline-none text-white hover:scale-110 transition-transform">
+          <i class="fas fa-search text-2xl"></i>
+        </button>
+        <button id="hamburger" class="focus:outline-none text-white hover:scale-110 transition-transform">
+          <i class="fas fa-bars text-2xl"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="mobile-menu" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="menu-overlay"></div>
+    <div id="menu-content" class="relative w-80 h-full bg-gray-900/95 backdrop-blur-xl transition-transform duration-300">
+      <div class="p-4 border-b border-gray-700/50 flex justify-between items-center">
+        <div class="logo text-2xl">DanzKu</div>
+        <button class="focus:outline-none text-white hover:text-accent transition-colors" id="close-menu">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      <nav class="mt-4 space-y-2">
+        <a class="block px-12 py-3 hover:bg-accent/10 hover:text-accent transition-all group" href="#">
+          <i class="fas fa-home"></i> Home
+        </a>
+        <a class="block px-12 py-3 hover:bg-accent/10 hover:text-accent transition-all group" href="#">
+          <i class="fas fa-exchange-alt"></i> Cek Transaksi
+        </a>
+        <a class="block px-12 py-3 hover:bg-accent/10 hover:text-accent transition-all group" href="#">
+          <i class="fas fa-envelope"></i> Kontak Kami
+        </a>
+        <a class="block px-12 py-3 hover:bg-accent/10 hover:text-accent transition-all group" href="#">
+          <i class="fas fa-question-circle"></i> FAQ
+        </a>
+      </nav>
+    </div>
+  </div>
+
+  <div id="search-overlay">
+    <button class="absolute top-4 right-4 text-gray-100 focus:outline-none" id="close-search">
+      <i class="fas fa-times text-3xl"></i>
+    </button>
+    <div class="w-full max-w-xl mb-4">
+      <input id="overlay-search" class="w-full p-4 border border-gray-600 rounded-full shadow-xl bg-gray-800 text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-accent focus:outline-none text-center text-2xl" placeholder="Cari nama game..." type="text" />
+    </div>
+    <div class="w-full max-w-2xl">
+      <div class="search-title">Produk Tersedia</div>
+      <ul id="search-results" class="space-y-4"></ul>
+      <div class="mt-4 flex justify-center">
+        <button class="ios-btn" id="reset-search">Tampilkan Semua Produk</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto mt-8 px-4 relative">
+    <div class="slider-container">
+      <div class="flex" id="slider">
+        <div class="min-w-full">
+          <img alt="Advertisement 1 dengan konten promosi yang menarik" class="w-full h-48 object-cover" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS4YhBDoqd4GRrh88UEbC4spcyo3f5HcDzYTt_50Ls7zzWWJL_qFTxcJKw&s=10" />
+        </div>
+        <div class="min-w-full">
+          <img alt="Advertisement 2 dengan konten promosi yang menarik" class="w-full h-48 object-cover" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTDTmNtYajIVBG1exlke63R9magQ9Zm7EPM5e1D9aSKRhlni0yH1PacvywM&s=10" />
+        </div>
+        <div class="min-w-full">
+          <img alt="Advertisement 3 dengan konten promosi yang menarik" class="w-full h-48 object-cover" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTOAcWLezZ6ct201J2Xxte0raH6VVkQzjUGga9xTmBFOGWAUu_XJp4r3Ww3&s=10" />
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-center mt-2 space-x-2">
+      <span class="h-2 w-2 bg-gray-500 rounded-full inline-block"></span>
+      <span class="h-2 w-2 bg-gray-300 rounded-full inline-block"></span>
+      <span class="h-2 w-2 bg-gray-300 rounded-full inline-block"></span>
+    </div>
+  </div>
+
+  <div class="container mx-auto mt-10 px-4 text-center">
+    <h3 class="inline-block bg-gradient-to-r from-accent to-cyan-300 bg-clip-text text-transparent text-2xl font-bold px-4">
+      <span class="bg-gray-900 text-white px-6 py-2 rounded-full border border-gray-700/50 backdrop-blur-lg">
+        ✨ Produk Kami
+      </span>
+    </h3>
+    <p class="mt-4 text-gray-400 max-w-2xl mx-auto text-base">
+      Temukan koleksi game premium terkini dengan harga spesial khusus untuk Anda
+    </p>
+  </div>
+
+  <div class="container mx-auto mt-8 px-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" id="product-list">
+  </div>
+
+
+  <footer class="bg-gradient-to-r from-gray-800 to-gray-700 text-white mt-8 py-6">
+    <div class="container mx-auto px-4">
+      <div class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
+        <div class="space-y-4">
+          <h2 class="text-2xl font-bold text-accent bg-clip-text bg-gradient-to-r from-accent to-cyan-300 logo">DanzKu</h2>
+          <p class="text-sm text-gray-400 leading-relaxed">
+            Platform gaming premium dengan layanan transaksi cepat dan aman. Temukan pengalaman bermain terbaik dengan koleksi game eksklusif.
+          </p>
+        </div>
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-gray-200">Navigasi</h3>
+          <nav class="flex flex-col space-y-2 text-sm">
+            <a href="#" class="text-gray-400 hover:text-accent transition-all group">
+              <i class="fas fa-home mr-2"></i> Beranda
+            </a>
+            <a href="#" class="text-gray-400 hover:text-accent transition-all group">
+              <i class="fas fa-exchange-alt mr-2"></i> Transaksi
+            </a>
+            <a href="#" class="text-gray-400 hover:text-accent transition-all group">
+              <i class="fas fa-envelope mr-2"></i> Kontak
+            </a>
+          </nav>
+        </div>
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-gray-200">Sosial Media</h3>
+          <div class="flex space-x-4 text-xl social-media-links">
+            <a href="#" class="p-2 rounded-full bg-gray-800 hover:bg-accent transition-all group instagram">
+              <i class="fab fa-instagram text-gray-400 group-hover:text-white"></i>
+            </a>
+            <a href="#" class="p-2 rounded-full bg-gray-800 hover:bg-accent transition-all group discord">
+              <i class="fab fa-discord text-gray-400 group-hover:text-white"></i>
+            </a>
+            <a href="#" class="p-2 rounded-full bg-gray-800 hover:bg-accent transition-all group twitter">
+              <i class="fab fa-twitter text-gray-400 group-hover:text-white"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="border-t border-gray-800 mt-8 pt-6 text-center text-sm">
+        <p class="text-gray-500">
+          © 2025 <span class="hover:text-accent cursor-pointer">DanzKu</span>. All rights reserved.
+          <span class="block mt-1 text-xs text-gray-600">v2.1.0 Modern Edition</span>
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    let allProducts = [];
+
+    async function loadSettings() {
+      try {
+        const response = await fetch('settings.json');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const settings = await response.json();
+        return settings;
+      } catch (e) {
+        console.error("Gagal memuat pengaturan:", e);
+        return null;
+      }
+    }
+
+    async function loadProducts() {
+      try {
+        const response = await fetch('produk.json');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const products = await response.json();
+        return products;
+      } catch (e) {
+        console.error("Gagal memuat produk:", e);
+        return [];
+      }
+    }
+
+    function renderProducts(products) {
+      const productListContainer = document.getElementById('product-list');
+      if (!productListContainer) return;
+      
+      productListContainer.innerHTML = "";
+      
+      products.forEach(product => {
+        const card = document.createElement('div');
+        card.className = "relative group cursor-pointer game-card";
+        card.setAttribute('data-link', product.link);
+        card.setAttribute('data-img', product.img);
+        card.onclick = () => window.location.href = product.link;
+        
+        card.innerHTML = `
+          <img alt="${product.name}" class="w-full h-48 object-cover rounded-lg" src="${product.img}" />
+          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent text-white text-center py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-b-lg">
+            <h2 class="text-lg font-semibold">${product.name}</h2>
+            <p class="text-sm">${product.publisher}</p>
+          </div>
+        `;
+        productListContainer.appendChild(card);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Muat data pengaturan dan produk secara bersamaan
+      const [settings, products] = await Promise.all([
+        loadSettings(),
+        loadProducts()
+      ]);
+      
+      allProducts = products;
+      
+      if (settings) {
+        // Perbarui nama toko di header dan menu mobile
+        document.querySelectorAll('.logo').forEach(el => {
+          el.textContent = settings.shopName;
+        });
+
+        // Perbarui nama toko di footer
+        const footerShopName = document.querySelector('footer p span');
+        if (footerShopName) {
+          footerShopName.textContent = settings.shopName;
+        }
+
+        // Perbarui tautan media sosial di footer
+        const socialLinksContainer = document.querySelector('.social-media-links');
+        if (socialLinksContainer) {
+          const instagramLink = socialLinksContainer.querySelector('.instagram');
+          const discordLink = socialLinksContainer.querySelector('.discord');
+          const twitterLink = socialLinksContainer.querySelector('.twitter');
+          
+          if (instagramLink) instagramLink.href = settings.socialMedia.instagram;
+          if (discordLink) discordLink.href = settings.socialMedia.discord;
+          if (twitterLink) twitterLink.href = settings.socialMedia.twitter;
+        }
+      }
+      
+      // Render produk di halaman
+      renderProducts(allProducts);
+
+      // === Hamburger Menu Functionality ===
+      const hamburger = document.getElementById('hamburger');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const closeMenu = document.getElementById('close-menu');
+      hamburger.addEventListener('click', () => mobileMenu.classList.add('active'));
+      closeMenu.addEventListener('click', () => mobileMenu.classList.remove('active'));
+
+      // === Search Overlay Functionality ===
+      const mobileSearchBtn = document.getElementById('mobile-search-btn');
+      const searchOverlay = document.getElementById('search-overlay');
+      const closeSearch = document.getElementById('close-search');
+      const overlaySearch = document.getElementById('overlay-search');
+      const searchResults = document.getElementById('search-results');
+      const resetSearch = document.getElementById('reset-search');
+
+      function updateSearchResults(query) {
+        searchResults.innerHTML = "";
+        const filteredProducts = allProducts.filter(product => 
+          product.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        if (filteredProducts.length === 0) {
+          const li = document.createElement('li');
+          li.className = "text-center text-gray-400 p-4";
+          li.textContent = "Tidak ada produk yang cocok.";
+          searchResults.appendChild(li);
+        } else {
+          filteredProducts.forEach(product => {
+            const li = document.createElement('li');
+            li.className = "flex items-center gap-4 p-3 bg-gray-800 rounded-lg search-result transition-transform cursor-pointer";
+            li.innerHTML = `
+              <img src="${product.img}" alt="${product.name} Thumbnail" />
+              <div class="result-text">${product.name}</div>
+              <i class="fas fa-chevron-right text-accent"></i>
+            `;
+            li.addEventListener('click', () => {
+              window.location.href = product.link;
+            });
+            searchResults.appendChild(li);
+          });
+        }
+      }
+
+      function openSearch() {
+        searchOverlay.classList.add('active');
+        overlaySearch.focus();
+        updateSearchResults(overlaySearch.value);
+      }
+      if (mobileSearchBtn) mobileSearchBtn.addEventListener('click', openSearch);
+
+      closeSearch.addEventListener('click', () => {
+        searchOverlay.classList.remove('active');
+      });
+
+      overlaySearch.addEventListener('input', (e) => updateSearchResults(e.target.value));
+      resetSearch.addEventListener('click', () => {
+        overlaySearch.value = "";
+        updateSearchResults("");
+      });
+      
+      // === Slider Functionality with Swipe Gesture ===
+      let currentIndex = 0;
+      const slider = document.getElementById('slider');
+      const slides = slider.querySelectorAll('div');
+      const totalSlides = slides.length;
+      const dots = document.querySelectorAll('.flex.justify-center span');
+
+      function updateSlider() {
+        slider.style.transform = `translateX(${-currentIndex * 100}%)`;
+        dots.forEach((dot, index) => {
+          dot.classList.toggle('bg-gray-500', index === currentIndex);
+          dot.classList.toggle('bg-gray-300', index !== currentIndex);
+        });
+      }
+      setInterval(() => {
+        currentIndex = (currentIndex + 1) % totalSlides;
+        updateSlider();
+      }, 5000);
+
+      let touchstartX = 0;
+      let touchendX = 0;
+      const threshold = 50;
+
+      slider.addEventListener('touchstart', (e) => {
+        touchstartX = e.changedTouches[0].screenX;
+      });
+
+      slider.addEventListener('touchend', (e) => {
+        touchendX = e.changedTouches[0].screenX;
+        handleGesture();
+      });
+
+      function handleGesture() {
+        if (touchstartX - touchendX > threshold) {
+          currentIndex = (currentIndex + 1) % totalSlides;
+          updateSlider();
+        } else if (touchendX - touchstartX > threshold) {
+          currentIndex = (currentIndex - 1 + totalSlides) % totalSlides;
+          updateSlider();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

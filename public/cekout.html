@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top‑Up Game & Fee Payment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <style>
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    /* Header */
+    #game-header {
+      position: relative;
+      background: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRC8VKtg_Bqe_PEKFiMyKDuiMnlzf1eWRKWu1Iv65NlHLr2HicEgj41snk&s=10') no-repeat center center;
+      background-size: cover;
+      padding: 20px;
+      border-radius: 0.5rem;
+      height: 180px;
+      overflow: hidden;
+    }
+    #star-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .bg-dark {
+      background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    }
+    .input-field {
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      background-color: #fff;
+      border: 1px solid #cbd5e1;
+      width: 100%;
+      color: #000;
+      transition: all 0.3s ease;
+    }
+    .input-field::placeholder { color: #000; }
+    .input-field:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.5);
+    }
+    .card-hover {
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .card-hover:hover {
+      transform: scale(1.05);
+      box-shadow: 0 10px 15px rgba(0,0,0,0.3);
+    }
+    .truncate-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .type-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid #64748b;
+      border-radius: 9999px;
+      background: #1e293b;
+      color: #f8fafc;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .type-btn.active {
+      background: #3b82f6;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .product-card {
+      border: 1px solid #475569;
+      border-radius: .75rem;
+      padding: 1rem;
+      cursor: pointer;
+    }
+    .product-card.active {
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .payment-card {
+      border: 1px solid #475569;
+      border-radius: .75rem;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+    }
+    .payment-card.active {
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .loading-dots {
+      display: flex;
+      gap: 0.2rem;
+    }
+    .loading-dots .dot {
+      font-size: 2rem;
+      opacity: 0.3;
+      animation: wave 1.2s infinite;
+    }
+    .loading-dots .dot:nth-child(1) { animation-delay: 0s; }
+    .loading-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes wave {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-10px); }
+    }
+    #modal {
+      opacity: 0;
+    }
+    #modal-content {
+      background: #1e293b;
+      padding: 1rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      max-height: 90vh;
+      overflow-y: auto;
+      width: 100%;
+      max-width: 420px;
+    }
+    #modal-body {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+    @media (max-width: 500px) {
+      #modal-body {
+        grid-template-columns: 1fr;
+      }
+    }
+    #qd-product {
+      max-width: 180px;
+    }
+  </style>
+</head>
+<body class="pb-20">
+  <div id="game-header" class="max-w-2xl mx-auto p-4 rounded-xl">
+    <canvas id="star-canvas"></canvas>
+    <div class="relative z-10 flex items-center space-x-4">
+      <img id="game-logo" src="" alt="Logo Game" class="w-16 h-16 rounded-full border border-slate-600">
+      <h1 id="game-title" class="text-3xl font-bold text-white"></h1>
+    </div>
+    <div class="relative z-10 mt-4 text-sm text-slate-200">
+      <a href="/" class="hover:underline text-blue-300">Home</a> /
+      <span id="breadcrumb-game" class="capitalize">Game</span>
+    </div>
+  </div>
+
+  <div id="form-container" class="max-w-2xl mx-auto -mt-2 p-6 bg-dark rounded-xl shadow-2xl border border-slate-700 mb-10">
+    <h3 id="step1-header" class="text-lg font-semibold mb-4">1. Masukkan ID/UID</h3>
+    <div id="step1"></div>
+    <h3 id="step2-header" class="text-lg font-semibold mt-6 mb-4">2. Pilih Tipe & Produk</h3>
+    <div id="type-filters" class="flex flex-wrap gap-2 mb-4"></div>
+    <div id="produk-list"><i>Memuat produk...</i></div>
+    <h3 id="step3-header" class="text-lg font-semibold mt-6 mb-4">3. Pilih Metode Pembayaran</h3>
+    <div id="payment-methods-container"><i>Memuat metode pembayaran...</i></div>
+    <h3 id="step4-header" class="text-lg font-semibold mt-6 mb-4">4. Masukkan Email (wajib)</h3>
+    <input type="email" id="email" class="input-field" placeholder="Masukkan Email">
+  </div>
+
+  <div id="modal" class="fixed inset-0 bg-black/70 hidden z-50 transition-opacity duration-200">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+      <div id="modal-content" class="w-full max-w-xl relative">
+        <button onclick="closeModal()" class="absolute top-3 right-3 bg-slate-700 hover:bg-slate-600 rounded-full p-2 transition duration-200">
+          <svg class="w-6 h-6 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+        <div id="modal-body" class="space-y-4"></div>
+        <div class="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-700">
+          <button onclick="closeModal()" class="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-medium text-slate-300 transition duration-200">
+            Batalkan
+          </button>
+          <button id="btn-bayar" onclick="bayar()" class="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-lg font-semibold text-white shadow transition duration-200 transform hover:scale-105">
+            Konfirmasi Pembayaran
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="quick-detail-container" class="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm p-4 border-t border-slate-700 z-40 transition-transform duration-200">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+      <div class="flex-1 mr-4">
+        <p id="qd-product" class="font-semibold text-white truncate text-sm md:text-base max-w-[180px]">-</p>
+        <p id="qd-price" class="font-bold text-emerald-400 text-lg md:text-xl mt-1">-</p>
+      </div>
+      <button id="btn-beli" onclick="handleBeli()" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold transition duration-200 transform hover:scale-105">
+        Lanjutkan
+      </button>
+    </div>
+  </div>
+
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-dots">
+      <span class="dot">.</span>
+      <span class="dot">.</span>
+      <span class="dot">.</span>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script>
+    // Efek Kunang-kunang menggunakan canvas (TETAP SAMA)
+    (function() {
+      const canvas = document.getElementById('star-canvas');
+      const ctx = canvas.getContext('2d');
+      let width, height;
+      const stars = [];
+      const numStars = 100;
+      function initCanvas() {
+        width = canvas.width = canvas.offsetWidth;
+        height = canvas.height = canvas.offsetHeight;
+      }
+      function createStars() {
+        stars.length = 0;
+        for (let i = 0; i < numStars; i++) {
+          stars.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: Math.random() * 1.5 + 0.5,
+            alpha: Math.random(),
+            alphaChange: 0.005 + Math.random() * 0.01,
+            dx: (Math.random() - 0.5) * 1.5,
+            dy: (Math.random() - 0.5) * 1.5
+          });
+        }
+      }
+      function animateStars() {
+        ctx.clearRect(0, 0, width, height);
+        stars.forEach(star => {
+          star.x += star.dx;
+          star.y += star.dy;
+          if (star.x < 0) star.x = width;
+          if (star.x > width) star.x = 0;
+          if (star.y < 0) star.y = height;
+          if (star.y > height) star.y = 0;
+          star.alpha += star.alphaChange;
+          if (star.alpha <= 0 || star.alpha >= 1) star.alphaChange *= -1;
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.radius, 0, 2 * Math.PI);
+          ctx.fillStyle = `rgba(255,255,255,${star.alpha})`;
+          ctx.fill();
+        });
+        requestAnimationFrame(animateStars);
+      }
+      initCanvas(); createStars(); animateStars();
+      window.addEventListener('resize', () => { initCanvas(); createStars(); });
+    })();
+
+    // Komponen DetailItem untuk membangun template modal (TETAP SAMA)
+    function DetailItem(label, value, icon, highlight = false) {
+      return `
+        <div class="flex items-center gap-3 p-2 bg-slate-800/30 rounded-md border border-slate-700/40 transition-colors ${highlight ? 'bg-emerald-500/10 border-emerald-500/30' : ''}">
+          <div class="text-xl text-slate-400 ${highlight ? 'text-emerald-400' : ''}">${icon}</div>
+          <div>
+            <div class="text-xs font-medium text-slate-400">${label}</div>
+            <div class="font-medium ${highlight ? 'text-emerald-400 text-base' : 'text-slate-200'} break-words">${value}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =================================================================================
+    // AWAL DARI BAGIAN YANG DIMODIFIKASI
+    // =================================================================================
+    
+    // Variabel hardcode seperti gameNameMap, gameLogoMap, specialGameForm telah DIHAPUS.
+
+    const CLIENT_JS_URL = 'http://localhost:3030';
+    let productsData = [], selectedProduct = null;
+    let depositMethodsData = [], selectedPaymentMethod = null;
+    let currentGameData = null; // Variabel baru untuk menyimpan data game yang sedang aktif
+
+    const params = new URLSearchParams(location.search);
+    const gameFromUrl = params.get("game");
+
+    // Fungsi baru untuk mengatur detail game (header dan form input) dari data JSON
+    function setupGameDetails(gameData) {
+        document.getElementById("breadcrumb-game").innerText = gameData.name || "Game";
+        document.getElementById("game-title").innerText = gameData.name || "";
+        document.getElementById("game-logo").src = gameData.img || "";
+
+        let formHtml = '';
+        switch (gameData.input_type) {
+            case 'id&server_id':
+                formHtml = `
+                    <label class="block mb-1">ID:</label>
+                    <input type="text" id="id" class="input-field mb-2" placeholder="Masukkan ID">
+                    <label class="block mb-1">Server ID:</label>
+                    <input type="text" id="server_id" class="input-field mb-2" placeholder="Masukkan Server ID">
+                `;
+                break;
+            case 'id&server_id_khusus':
+                formHtml = `
+                    <label class="block mb-1">UID:</label>
+                    <input type="text" id="uid" class="input-field mb-2" placeholder="Masukkan UID">
+                    <label class="block mb-1">Server:</label>
+                    <select id="server" class="input-field mb-2">
+                        <option value="">Pilih Server</option>
+                        <option>America</option>
+                        <option>Asia</option>
+                        <option>Europe</option>
+                        <option>TW_HK_MO</option>
+                    </select>
+                `;
+                break;
+            case 'id':
+            default:
+                formHtml = `
+                    <label class="block mb-1">ID:</label>
+                    <input type="text" id="id" class="input-field mb-2" placeholder="Masukkan ID">
+                `;
+                break;
+        }
+        document.getElementById("step1").innerHTML = formHtml;
+    }
+
+    // Fungsi inisialisasi utama yang dimodifikasi
+    async function initPage() {
+        showLoading();
+        try {
+            // 1. Ambil data semua game dari produk.json
+            const response = await fetch('produk.json'); // Pastikan file ini ada di folder yang sama
+            if (!response.ok) throw new Error('File produk.json tidak ditemukan.');
+            
+            const allGames = await response.json();
+            
+            // 2. Cari game yang sesuai dengan parameter di URL
+            currentGameData = allGames.find(game => game.code === gameFromUrl);
+
+            if (currentGameData) {
+                // 3. Jika game ditemukan, atur halaman dan muat data produk & pembayaran
+                setupGameDetails(currentGameData);
+                await Promise.all([
+                    loadProducts(currentGameData.name), // Kirim nama game ke fungsi loadProducts
+                    loadPaymentMethods()
+                ]);
+            } else {
+                // 4. Jika game tidak ditemukan, tampilkan pesan error
+                throw new Error('Game tidak ditemukan di URL.');
+            }
+        } catch (error) {
+            console.error("Gagal memuat data awal:", error);
+            document.getElementById("form-container").innerHTML = `<p class='text-red-500 text-center'>Error: ${error.message}</p>`;
+            showToast(error.message, "error");
+        } finally {
+            // Tunggu sebentar agar transisi loading lebih mulus
+            setTimeout(() => hideLoading(), 500);
+        }
+    }
+
+    // Elemen HTML yang relevan
+    const totalNominalDisplay = document.getElementById('qd-price');
+    const submitButton = document.getElementById('btn-beli');
+
+    // Fungsi format Rupiah (TETAP SAMA)
+    function formatRupiah(number) {
+        if (typeof number !== 'number' || isNaN(number)) {
+            number = 0;
+        }
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0
+        }).format(number);
+    }
+    
+    function formatRupiahString(str) {
+      const num = parseInt(str);
+      return formatRupiah(num);
+    }
+
+    // --- Fetch Data ---
+    // Fungsi loadProducts dimodifikasi untuk menerima nama game
+    function loadProducts(gameName) {
+      return fetch(`${CLIENT_JS_URL}/produk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: gameName })
+      })
+      .then(r => r.json())
+      .then(res => {
+        productsData = res;
+        renderTypeFilters();
+        renderProducts("all");
+      })
+      .catch(() => {
+        document.getElementById("produk-list").innerHTML = "<i>Gagal memuat produk.</i>";
+        showToast("Gagal memuat produk.", "error", document.getElementById("produk-list"));
+        return Promise.reject("Gagal memuat produk.");
+      });
+    }
+
+    function loadPaymentMethods() {
+      return fetch(`${CLIENT_JS_URL}/deposit-methods`) 
+        .then(r => r.json())
+        .then(res => {
+          depositMethodsData = res.data; 
+          let html = `<div class="grid grid-cols-1 md:grid-cols-2 gap-2">`; 
+          depositMethodsData.filter(x => x.status === "aktif").forEach(x => {
+            html += `
+              <div class="payment-card card-hover"
+                   onclick="selectPaymentMethod(this, '${x.metode}')" 
+                   data-metode="${x.metode}">
+                <img src="${x.img_url}" class="mx-auto mb-2 w-10 h-10">
+                <div class="font-bold text-slate-100">${x.metode}</div>
+                <div class="text-xs text-slate-300">Fixed Fee: ${formatRupiahString(x.fee)}</div>
+                <div class="text-xs text-slate-300">Percentage Fee: ${x.fee_persen}%</div>
+                <div class="text-xs text-slate-300">Min: ${formatRupiahString(x.minimum)}</div>
+              </div>`;
+          });
+          html += `</div>`;
+          document.getElementById("payment-methods-container").innerHTML = html;
+          updateTotalNominal();
+        })
+        .catch(() => {
+          document.getElementById("payment-methods-container").innerHTML = "<div>Gagal memuat metode pembayaran.</div>";
+          showToast("Gagal memuat metode pembayaran.", "error", document.getElementById("payment-methods-container"));
+          return Promise.reject("Gagal memuat metode pembayaran.");
+        });
+    }
+
+    // =================================================================================
+    // SISA DARI SKRIP DI BAWAH INI KEBANYAKAN TETAP SAMA
+    // =================================================================================
+
+    // --- Populate Dropdowns ---
+    function renderTypeFilters() {
+      const types = Array.from(new Set(productsData.map(p => p.type))).sort();
+      const container = document.getElementById("type-filters");
+      container.innerHTML = `<button class="type-btn active" data-type="all">Semua</button>`;
+      types.forEach(t => {
+        container.innerHTML += `<button class="type-btn" data-type="${t}">${t}</button>`;
+      });
+      container.querySelectorAll(".type-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          container.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          renderProducts(btn.dataset.type);
+          document.getElementById("step2-header").scrollIntoView({ behavior:"smooth", block:"center" });
+        });
+      });
+    }
+
+    function renderProducts(type) {
+      const listEl = document.getElementById("produk-list");
+      const filtered = type === "all" ? productsData : productsData.filter(p => p.type === type);
+      if (!filtered.length) {
+        listEl.innerHTML = "<i>Tidak ada produk untuk tipe ini.</i>";
+        selectedProduct = null;
+        updateTotalNominal();
+        return;
+      }
+      const productGroups = filtered.reduce((acc, product) => {
+        const productType = product.type || 'Lainnya';
+        if (!acc[productType]) acc[productType] = [];
+        acc[productType].push(product);
+        return acc;
+      }, {});
+      let html = '';
+      for (const groupType in productGroups) {
+        html += `<h4 class="text-lg font-bold mt-4 mb-2 text-sky-400">${groupType}</h4>`;
+        html += `<div class="grid grid-cols-2 gap-4">`;
+        productGroups[groupType].forEach(p => {
+            const isActive = selectedProduct && selectedProduct.code === p.code ? 'active' : '';
+            html += `
+              <div class="product-card card-hover ${isActive}" 
+                   onclick="selectProduct(this, '${p.name}', ${p.price}, '${p.note}', '${p.provider}', '${p.code}', ${p.original_price})">
+                <div class="font-bold text-slate-100">${p.name}</div>
+                <div class="text-xs text-gray-400 mb-1">Tipe: ${p.type}</div>
+                <div class="text-emerald-400 font-bold">${formatRupiah(p.price)}</div>
+              </div>`;
+          });
+        html += `</div>`;
+      }
+      listEl.innerHTML = html;
+    }
+
+    function selectProduct(el, name, price, note, provider, code, original_price) {
+      document.querySelectorAll('.product-card').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      selectedProduct = { name, price, note, provider, code, original_price };
+      document.getElementById("qd-product").innerText = name;
+      updateTotalNominal();
+      document.getElementById("step3-header").scrollIntoView({ behavior:"smooth", block:"center" });
+      checkFormValidity();
+    }
+
+    function selectPaymentMethod(el, metodeName) {
+      document.querySelectorAll('.payment-card').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      selectedPaymentMethod = depositMethodsData.find(m => m.metode === metodeName); 
+      updateTotalNominal();
+      document.getElementById("step4-header").scrollIntoView({ behavior:"smooth", block:"center" });
+      checkFormValidity();
+    }
+
+    // --- Kalkulasi & Validasi ---
+    function updateTotalNominal() {
+        let currentProductPrice = selectedProduct ? selectedProduct.price : 0; 
+        let totalBeforeDepositFees = currentProductPrice; 
+        if (selectedPaymentMethod) {
+            let forestDepositFixedFee = parseInt(selectedPaymentMethod.fee);
+            let forestDepositPercentageRate = parseFloat(selectedPaymentMethod.fee_persen);
+            const calculatedPercentageDepositFee = Math.round(totalBeforeDepositFees * (forestDepositPercentageRate / 100));
+            totalBeforeDepositFees += forestDepositFixedFee + calculatedPercentageDepositFee;
+        }
+        document.getElementById("qd-price").textContent = formatRupiah(totalBeforeDepositFees);
+        checkFormValidity();
+    }
+
+    function checkFormValidity() {
+      if (!currentGameData) return { isValid: false, invalidElement: document.getElementById("form-container") };
+
+      let isIdValid = true;
+      let userIdInput = document.getElementById("id") || document.getElementById("uid");
+      let zoneIdInput = document.getElementById("server_id") || document.getElementById("server");
+      let invalidElement = null;
+
+      if (!userIdInput || !userIdInput.value.trim()) {
+          isIdValid = false;
+          invalidElement = userIdInput || document.getElementById("step1-header");
+      }
+
+      if (isIdValid && (currentGameData.input_type === 'id&server_id' || currentGameData.input_type === 'id&server_id_khusus')) {
+          if (!zoneIdInput || !zoneIdInput.value.trim()) {
+              isIdValid = false;
+              invalidElement = zoneIdInput || document.getElementById("step1-header");
+          }
+      }
+      
+      const isProductSelected = selectedProduct !== null;
+      if (!isProductSelected && !invalidElement) invalidElement = document.getElementById("produk-list");
+
+      const isPaymentMethodSelected = selectedPaymentMethod !== null;
+      if (!isPaymentMethodSelected && !invalidElement) invalidElement = document.getElementById("payment-methods-container");
+
+      const emailEl = document.getElementById("email");
+      const isEmailValid = emailEl && emailEl.value.trim() !== '';
+      if (!isEmailValid && !invalidElement) invalidElement = emailEl;
+
+      const totalPrice = toNumber(document.getElementById("qd-price").textContent);
+      const isMinValid = !selectedPaymentMethod || totalPrice >= parseInt(selectedPaymentMethod.minimum);
+      if (!isMinValid && !invalidElement) invalidElement = document.getElementById("payment-methods-container");
+
+      const isFormValid = isIdValid && isEmailValid && isProductSelected && isPaymentMethodSelected && isMinValid;
+      return { isValid: isFormValid, invalidElement: invalidElement };
+    }
+
+    function scrollToElement(el) {
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // --- Event Listeners & Actions ---
+    document.addEventListener('input', (event) => {
+        if (event.target.closest('#step1 input, #step1 select, #email')) {
+            checkFormValidity();
+        }
+    });
+
+    function handleBeli() {
+      const validationResult = checkFormValidity();
+      if (!validationResult.isValid) {
+          let errorMessage = "";
+          let targetElement = validationResult.invalidElement;
+
+          if (targetElement && (targetElement.id === 'id' || targetElement.id === 'uid')) {
+              errorMessage = "Mohon masukkan ID/UID Anda.";
+          } else if (targetElement && (targetElement.id === 'server_id' || targetElement.id === 'server')) {
+              errorMessage = "Mohon masukkan Server ID Anda atau pilih Server.";
+          } else if (targetElement === document.getElementById("produk-list")) {
+              errorMessage = "Mohon pilih produk yang ingin dibeli.";
+          } else if (targetElement === document.getElementById("payment-methods-container")) {
+              const totalPrice = toNumber(document.getElementById("qd-price").textContent);
+              if (selectedPaymentMethod && totalPrice < parseInt(selectedPaymentMethod.minimum)) {
+                  errorMessage = `Total pembayaran di bawah minimum ${formatRupiah(parseInt(selectedPaymentMethod.minimum))}.`;
+              } else {
+                  errorMessage = "Mohon pilih metode pembayaran.";
+              }
+          } else if (targetElement === document.getElementById("email")) {
+              errorMessage = "Mohon masukkan alamat email Anda.";
+          } else {
+              errorMessage = "Mohon lengkapi semua data yang diperlukan.";
+              targetElement = document.getElementById("form-container");
+          }
+
+          showToast(errorMessage, "error");
+          setTimeout(() => scrollToElement(targetElement), 300);
+          return;
+      }
+      showLoading();
+      setTimeout(() => {
+        hideLoading();
+        submitOrder();
+      }, 500);
+    }
+
+    async function bayar() {
+      showLoading();
+      const btnBayar = document.getElementById("btn-bayar");
+      btnBayar.disabled = true;
+
+      let userIdInput = document.getElementById("id") || document.getElementById("uid");
+      let zoneIdInput = document.getElementById("server_id") || document.getElementById("server");
+      let targetVal = userIdInput ? userIdInput.value.trim() : '';
+      if (zoneIdInput && zoneIdInput.value.trim()) {
+          targetVal += `(${zoneIdInput.value.trim()})`;
+      }
+
+      const payload = {
+        target: targetVal,
+        nama: selectedProduct.name,
+        price: selectedProduct.price,
+        nominal: selectedProduct.price,
+        email: document.getElementById('email').value.trim(),
+        metode: selectedPaymentMethod.metode,
+        reff_id: generateRefID(),
+        provider: selectedProduct.provider,
+        code: selectedProduct.code
+      };
+
+      try {
+        const res = await fetch(`${CLIENT_JS_URL}/api/deposit/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          window.location.href = `payment.html?reff_id=${payload.reff_id}`;
+        } else {
+          showToast(`Transaksi Gagal: ${data.error?.message || data.message || 'Terjadi kesalahan.'}`, 'error');
+        }
+      } catch (err) {
+        showToast(err.message || 'Terjadi kesalahan saat mengirim data.', 'error');
+      } finally {
+        hideLoading();
+        btnBayar.disabled = false;
+        closeModal();
+      }
+    }
+
+    function submitOrder() {
+      const emailVal = document.getElementById("email").value.trim();
+      let info = "";
+      let userIdInput = document.getElementById("id") || document.getElementById("uid");
+      let zoneIdInput = document.getElementById("server_id") || document.getElementById("server");
+      let userId = userIdInput ? userIdInput.value.trim() : '';
+      let zoneId = zoneIdInput ? zoneIdInput.value.trim() : '';
+      
+      if (zoneId) info = `${userId} | ${zoneId}`;
+      else info = userId;
+      
+      const finalTotal = toNumber(document.getElementById("qd-price").textContent);
+      const productPrice = selectedProduct.price;
+      const fixedFee = selectedPaymentMethod ? parseInt(selectedPaymentMethod.fee) : 0;
+      const percentFeeRate = selectedPaymentMethod ? parseFloat(selectedPaymentMethod.fee_persen) : 0;
+      const percentFee = Math.round(productPrice * (percentFeeRate / 100));
+
+      showModal(`
+        <div class="mb-2 font-bold text-2xl text-center">🚀 Detail Transaksi</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          ${DetailItem("ID/UID", info, "🔖")}
+          ${DetailItem("Produk", selectedProduct.name, "🛒")}
+          ${DetailItem("Harga Produk", formatRupiah(productPrice), "🏷️")}
+          ${selectedPaymentMethod ? `
+            ${DetailItem("Fee Tetap", formatRupiah(fixedFee), "🖨️")}
+            ${DetailItem(`Fee Persen (${percentFeeRate}%)`, formatRupiah(percentFee), "📈")}
+          ` : ''}
+          ${DetailItem("Total Bayar", formatRupiah(finalTotal), "💰", true)}
+          ${DetailItem("Email", emailVal, "📧")}
+          ${DetailItem("Metode Pembayaran", selectedPaymentMethod.metode || '', "📱")}
+          ${selectedProduct.note ? `
+            <div class="col-span-1 md:col-span-2">
+              <div class="p-3 bg-slate-800/50 rounded-md border border-slate-700/40">
+                <div class="flex items-start gap-2">
+                  <div class="text-emerald-400 text-lg">📌</div>
+                  <div>
+                    <h4 class="font-medium text-slate-200 text-sm">Catatan Penting</h4>
+                    <p class="text-slate-400 text-xs">${selectedProduct.note}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ` : ""}
+        </div>
+        <div class="mt-2 text-center text-xs text-gray-400">(Total sudah termasuk semua biaya)</div>
+      `);
+    }
+
+    // --- Helper Functions ---
+    function showModal(contentHTML) {
+      document.getElementById("modal-body").innerHTML = contentHTML;
+      const modal = document.getElementById("modal");
+      modal.classList.remove("hidden");
+      setTimeout(() => { modal.style.opacity = "1"; }, 50);
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("modal");
+      modal.style.opacity = "0";
+      setTimeout(() => {
+        modal.classList.add("hidden");
+        document.body.style.overflow = "";
+      }, 200);
+    }
+
+    function generateRefID() {
+      return 'trx-' + Date.now() + Math.floor(Math.random() * 900);
+    }
+
+    function toNumber(val) {
+      return parseInt(val.replace(/[Rp.,\s]/g, '')) || 0;
+    }
+
+    function showLoading() {
+      document.getElementById("loading-overlay").classList.remove("hidden");
+    }
+
+    function hideLoading() {
+      document.getElementById("loading-overlay").classList.add("hidden");
+    }
+
+    function showToast(msg, type = "info") {
+      Toastify({
+        text: msg,
+        duration: 3000,
+        gravity: "top",
+        position: "center",
+        style: {
+          background: type === 'error' ? "rgba(239, 68, 68, 0.95)" : "rgba(34, 197, 94, 0.95)",
+          color: "#fff",
+          borderRadius: "16px",
+          fontFamily: "'SF Pro Display', -apple-system",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.25)"
+        }
+      }).showToast();
+    }
+
+    // --- Panggil fungsi inisialisasi saat halaman dimuat ---
+    initPage();
+    document.addEventListener('DOMContentLoaded', checkFormValidity);
+  </script>
+</body>
+</html>
