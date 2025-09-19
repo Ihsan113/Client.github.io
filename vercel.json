@@ -14,5 +14,11 @@
         "Cache-Control": "no-store"
       }
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/maintenance",
+      "schedule": "0 * * * *"
+    }
   ]
 }
