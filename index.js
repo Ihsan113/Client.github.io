@@ -6,8 +6,8 @@ const path = require('path');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
 const dayjs = require('dayjs');
-const { v4: uuidv4 } = require('uuid');
 const { MongoClient } = require('mongodb');
+const crypto = require('crypto'); // Gunakan crypto built-in untuk UUID
 
 const app = express();
 
@@ -17,6 +17,11 @@ app.use(bodyParser.json());
 // --- KONFIGURASI MONGODB ---
 const uri = "mongodb+srv://Sanz:Gombong123@cluster0.elarb3c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const client = new MongoClient(uri);
+
+// Fungsi untuk generate UUID (menggunakan crypto built-in)
+function uuidv4() {
+  return crypto.randomUUID();
+}
 
 async function connectToMongo() {
     try {
@@ -188,7 +193,7 @@ app.post('/api/deposit/create', async (req, res) => {
         }
 
         const atlanticData = response.data.data;
-        const transactionId = uuidv4();
+        const transactionId = uuidv4(); // Sekarang sudah bisa digunakan
 
         const dataToSave = {
             _id: transactionId,
