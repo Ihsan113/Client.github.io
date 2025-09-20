@@ -1,12 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
 const dayjs = require('dayjs');
 const { v4: uuidv4 } = require('uuid');
 const { MongoClient } = require('mongodb');
-const cron = require('node-cron');
 
 const app = express();
 
@@ -31,7 +32,6 @@ async function connectToMongo() {
 let db;
 connectToMongo().then((database) => {
     db = database;
-    console.log("Database connection established");
 });
 
 // Konfigurasi transporter Gmail
@@ -60,18 +60,10 @@ app.use((req, res, next) => {
     next();
 });
 
+// --- Middleware untuk Menyajikan Folder Public ---
+app.use(express.static(path.join(__dirname, 'public')));
+
 // --- API Endpoints ---
-
-// Root endpoint
-app.get('/', (req, res) => {
-    res.json({ 
-        message: 'DanzKu Store API is running!',
-        version: '1.0.0',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Get products by provider
 app.post('/produk', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Nama provider tidak boleh kosong' });
@@ -117,7 +109,6 @@ app.post('/produk', async (req, res) => {
     }
 });
 
-// Get deposit methods
 app.get('/deposit-methods', async (req, res) => {
     try {
         const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_metode`, {
@@ -149,7 +140,6 @@ app.get('/deposit-methods', async (req, res) => {
     }
 });
 
-// Create deposit
 app.post('/api/deposit/create', async (req, res) => {
     const { nominal, metode, reff_id, key_user, target, nama, email, nickname, price, provider, code } = req.body;
     if (!nominal || !metode || !reff_id || !target || !nama || !email || !price || !provider || !code) {
@@ -256,7 +246,6 @@ app.post('/api/deposit/create', async (req, res) => {
     }
 });
 
-// Get transaction by reff_id
 app.get('/api/transaction/:reff_id', async (req, res) => {
     const { reff_id } = req.params;
     try {
@@ -286,7 +275,6 @@ app.get('/api/transaction/:reff_id', async (req, res) => {
     }
 });
 
-// Webhook Atlantic
 app.post('/webhook/atlantic', async (req, res) => {
     const { event, data } = req.body;
     console.log(`\n=== Menerima Webhook untuk Event: ${event} ===`);
@@ -435,114 +423,33 @@ app.post('/webhook/atlantic', async (req, res) => {
     }
 });
 
-// ===== BAGIAN PEMELIHARAAN =====
-const finalStatuses = ['completed', 'failed', 'canceled', 'expired'];
-
-async function cleanUpTransactions() {
-  try {
-    console.log("🔄 Memulai pembersihan data transaksi...");
-    const transactionsCollection = db.collection('transactions');
-
-    // Filter: hapus jika status final ATAU pending yang expired
-    const filter = {
-      $or: [
-        { status: { $in: finalStatuses } },
-        {
-          status: 'pending',
-          'data_deposit.expired_at': { $lte: new Date() }
-        }
-      ]
-    };
-    
-    const result = await transactionsCollection.deleteMany(filter);
-    console.log(`✅ Berhasil menghapus ${result.deletedCount} transaksi`);
-    return result.deletedCount;
-  } catch (err) {
-    console.error("❌ Gagal menjalankan pembersihan:", err);
-    throw err;
-  }
+// Tambahkan fungsi untuk mendapatkan IP public
+async function getPublicIp() {
+    try {
+        const response = await axios.get('https://api.ipify.org?format=json');
+        return response.data.ip;
+    } catch (error) {
+        console.error('Gagal mendapatkan IP public:', error.message);
+        // Fallback ke localhost jika gagal
+        return '127.0.0.1';
+    }
 }
 
-// ===== CRON JOBS UNTUK PEMELIHARAAN =====
-// Jalankan setiap jam (pada menit ke-0)
-cron.schedule('0 * * * *', () => {
-  console.log('⏰ Trigger cron job - Pemeliharaan rutin');
-  cleanUpTransactions().catch(console.error);
-});
+// Modifikasi bagian listen server
+const internalPort = process.env.PORT || 1038;
 
-// ===== MANUAL TRIGGER VIA API =====
-app.get('/api/maintenance', async (req, res) => {
-  try {
-    console.log('🔧 Manual trigger maintenance');
-    const deletedCount = await cleanUpTransactions();
-    res.json({ 
-      status: 'success', 
-      message: 'Maintenance dijalankan secara manual!',
-      deletedCount 
+getPublicIp().then(async (publicIp) => {
+    app.listen(internalPort, '0.0.0.0', async () => {
+        console.log(`Server Express Anda berjalan di port internal: ${internalPort}`);
+        console.log(`IP Public Server: ${publicIp}`);
+        console.log(`**Untuk mengakses aplikasi dari luar, gunakan IP publik server Anda (${publicIp}) dan port ${internalPort}.**`);
+        console.log(`Contoh URL akses: http://${publicIp}:${internalPort}`);
+        console.log(`Pastikan Anda mendaftarkan URL webhook ini di Atlantic Pedia: http://${publicIp}:${internalPort}/webhook/atlantic`);
+        
+        // Jika menggunakan domain, tambahkan informasi ini
+        console.log(`\nJika Anda memiliki domain, pastikan untuk mengarahkannya ke IP: ${publicIp}`);
     });
-  } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Gagal menjalankan maintenance',
-      error: error.message 
-    });
-  }
+}).catch(error => {
+    console.error('Gagal memulai server:', error);
+    process.exit(1);
 });
-
-// ===== HEALTH CHECK =====
-app.get('/health', async (req, res) => {
-  try {
-    // Test database connection
-    await db.command({ ping: 1 });
-    
-    res.json({ 
-      status: 'healthy', 
-      timestamp: new Date().toISOString(),
-      service: 'DanzKu Store API',
-      database: 'connected'
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      status: 'unhealthy', 
-      timestamp: new Date().toISOString(),
-      service: 'DanzKu Store API',
-      database: 'disconnected',
-      error: error.message 
-    });
-  }
-});
-
-// ===== ERROR HANDLING =====
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    status: 'error', 
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ 
-    status: 'error', 
-    message: 'Endpoint not found' 
-  });
-});
-
-// ===== START SERVER =====
-const PORT = process.env.PORT || 3030;
-
-// Export untuk Vercel
-module.exports = app;
-
-// Jalankan server hanya jika tidak di environment Vercel
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server DanzKu Store berjalan di port ${PORT}`);
-    console.log('⏰ Cron jobs aktif:');
-    console.log('   - Setiap jam: pembersihan transaksi');
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 Maintenance: http://localhost:${PORT}/api/maintenance`);
-  });
-}
