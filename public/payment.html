@@ -449,7 +449,7 @@
             loadingOverlayEl.classList.remove("hidden"); // Show global loading overlay
             
             try {
-                const res = await fetch(`http://206.189.144.76:1038/api/transaction/${reff_id}`);
+                const res = await fetch(`https://danzku4-dwu9eoa4.b4a.run/api/transaction/${reff_id}`);
                 const json = await res.json();
                 
                 if (json.status !== "success") {
