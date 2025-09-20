@@ -287,7 +287,7 @@
     
     // Variabel hardcode seperti gameNameMap, gameLogoMap, specialGameForm telah DIHAPUS.
 
-    const CLIENT_JS_URL = 'http://localhost:3030';
+    const CLIENT_JS_URL = 'http://206.189.144.76:1038';
     let productsData = [], selectedProduct = null;
     let depositMethodsData = [], selectedPaymentMethod = null;
     let currentGameData = null; // Variabel baru untuk menyimpan data game yang sedang aktif
@@ -442,7 +442,7 @@
     }
 
     // =================================================================================
-    // SISA DARI SKRIP DI BAWAH INI KEBANYAKAN TETAP SAMA
+    // SISA DARI SKRIP DI BAWAH INI KEBANYAKAN TETAP SAMA, DENGAN MODIFIKASI SORTING
     // =================================================================================
 
     // --- Populate Dropdowns ---
@@ -465,7 +465,11 @@
 
     function renderProducts(type) {
       const listEl = document.getElementById("produk-list");
-      const filtered = type === "all" ? productsData : productsData.filter(p => p.type === type);
+      let filtered = type === "all" ? productsData : productsData.filter(p => p.type === type);
+      
+      // Sort filtered products by price ascending (murah ke mahal)
+      filtered = filtered.sort((a, b) => a.price - b.price); // Jika price string, ubah ke parseInt(a.price) - parseInt(b.price)
+
       if (!filtered.length) {
         listEl.innerHTML = "<i>Tidak ada produk untuk tipe ini.</i>";
         selectedProduct = null;
