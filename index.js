@@ -32,6 +32,8 @@ async function connectToMongo() {
 let db;
 connectToMongo().then((database) => {
     db = database;
+    // Panggil fungsi pemeliharaan setelah koneksi berhasil
+    startCleanupService(db);
 });
 
 // Konfigurasi transporter Gmail
@@ -422,6 +424,39 @@ app.post('/webhook/atlantic', async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Terjadi kesalahan internal.' });
     }
 });
+
+// --- FUNGSI PEMELIHARAAN (dari pemeliharaan.js) ---
+const finalStatuses = ['completed', 'failed', 'canceled', 'expired'];
+
+function startCleanupService(dbInstance) {
+    const transactionsCollection = dbInstance.collection('transactions');
+    const runCleanup = async () => {
+        try {
+            console.log("Mulai pembersihan data transaksi...");
+            
+            const filter = {
+                $or: [
+                    { status: { $in: finalStatuses } },
+                    {
+                        status: 'pending',
+                        'data_deposit.expired_at': { $lte: new Date() }
+                    }
+                ]
+            };
+            
+            const result = await transactionsCollection.deleteMany(filter);
+            console.log(`✅ Berhasil menghapus ${result.deletedCount} transaksi dengan status final atau kedaluwarsa.`);
+        } catch (err) {
+            console.error("❌ Gagal menjalankan pembersihan:", err);
+        }
+    };
+
+    // Jalankan pembersihan pertama kali saat server dimulai
+    runCleanup();
+
+    // Jalankan pembersihan setiap 10 detik
+    setInterval(runCleanup, 10000);
+}
 
 // Tambahkan fungsi untuk mendapatkan IP public
 async function getPublicIp() {

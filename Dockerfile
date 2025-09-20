@@ -1,5 +1,5 @@
-# Gunakan image Node.js versi LTS
-FROM node:18-alpine
+# Gunakan image Node.js versi 22
+FROM node:22-alpine
 
 # Set working directory
 WORKDIR /app
@@ -13,8 +13,8 @@ RUN npm install
 # Copy semua file aplikasi
 COPY . .
 
-# Expose port yang digunakan
+# Expose port yang digunakan (Back4App akan menggunakan PORT environment variable)
 EXPOSE 1038
 
-# Command untuk menjalankan aplikasi
+# Command untuk menjalankan aplikasi - pastikan package.json punya start script yang benar
 CMD ["npm", "start"]
