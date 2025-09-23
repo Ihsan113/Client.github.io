@@ -7,7 +7,7 @@ const axios = require('axios');
 const nodemailer = require('nodemailer');
 const dayjs = require('dayjs');
 const { MongoClient } = require('mongodb');
-const crypto = require('crypto'); // Gunakan crypto built-in untuk UUID
+const crypto = require('crypto');
 
 const app = express();
 
@@ -18,27 +18,72 @@ app.use(bodyParser.json());
 const uri = "mongodb+srv://Sanz:Gombong123@cluster0.elarb3c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const client = new MongoClient(uri);
 
-// Fungsi untuk generate UUID (menggunakan crypto built-in)
+// Fungsi untuk generate UUID
 function uuidv4() {
   return crypto.randomUUID();
 }
 
+// Variabel global untuk koneksi
+let db = null;
+let isConnecting = false;
+let connectionPromise = null;
+
+// Fungsi koneksi MongoDB dengan retry logic
 async function connectToMongo() {
-    try {
-        await client.connect();
-        console.log("Berhasil terhubung ke MongoDB Atlas!");
-        return client.db("DanzKuStore");
-    } catch (err) {
-        console.error("Gagal terhubung ke MongoDB:", err);
-        process.exit(1);
+    if (connectionPromise) {
+        return connectionPromise;
     }
+    
+    connectionPromise = (async () => {
+        try {
+            isConnecting = true;
+            console.log("Menghubungkan ke MongoDB Atlas...");
+            
+            await client.connect();
+            const database = client.db("DanzKuStore");
+            
+            // Test koneksi
+            await database.command({ ping: 1 });
+            console.log("✅ Berhasil terhubung ke MongoDB Atlas!");
+            
+            db = database;
+            isConnecting = false;
+            
+            // Mulai layanan pemeliharaan
+            startCleanupService(db);
+            
+            return database;
+        } catch (err) {
+            console.error("❌ Gagal terhubung ke MongoDB:", err);
+            isConnecting = false;
+            connectionPromise = null;
+            throw err;
+        }
+    })();
+    
+    return connectionPromise;
 }
 
-let db;
-connectToMongo().then((database) => {
-    db = database;
-    // Panggil fungsi pemeliharaan setelah koneksi berhasil
-    startCleanupService(db);
+// Middleware untuk memastikan koneksi MongoDB tersedia
+app.use(async (req, res, next) => {
+    try {
+        if (!db && !isConnecting) {
+            await connectToMongo();
+        } else if (isConnecting) {
+            // Tunggu jika sedang connecting
+            await connectionPromise;
+        }
+        
+        // Tambahkan db ke request object untuk akses yang lebih aman
+        req.db = db;
+        next();
+    } catch (error) {
+        console.error('Error koneksi MongoDB:', error);
+        res.status(503).json({ 
+            status: 'error', 
+            message: 'Database sedang tidak tersedia. Silakan coba lagi.' 
+        });
+    }
 });
 
 // Konfigurasi transporter Gmail
@@ -71,6 +116,8 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API Endpoints ---
+// Modifikasi semua endpoint untuk menggunakan req.db bukan variabel global db
+
 app.post('/produk', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Nama provider tidak boleh kosong' });
@@ -84,8 +131,8 @@ app.post('/produk', async (req, res) => {
         if (!data.status || !Array.isArray(data.data)) {
             return res.status(500).json({ error: 'Gagal mengambil data produk dari Atlantic Pedia' });
         }
+        
         const providerName = name.toLowerCase();
-
         const filtered = data.data.reduce((acc, item) => {
             if (!item.provider) return acc;
             const provider = item.provider.toLowerCase();
@@ -162,6 +209,7 @@ app.post('/api/deposit/create', async (req, res) => {
         if (!priceListData.status || !Array.isArray(priceListData.data)) {
             return res.status(500).json({ status: 'error', message: 'Gagal mengambil data harga produk dari Atlantic Pedia' });
         }
+        
         const matchedProduct = priceListData.data.find(p => p.code === code);
         if (!matchedProduct) {
             return res.status(404).json({ status: 'error', message: 'Kode produk tidak valid.' });
@@ -195,11 +243,10 @@ app.post('/api/deposit/create', async (req, res) => {
         const atlanticData = response.data.data;
         const transactionId = uuidv4();
 
-        // ✅ FIX: Gunakan timestamp untuk semua waktu
         const now = Date.now();
         const expiredTimestamp = atlanticData.expired_at ? 
             new Date(atlanticData.expired_at.replace(' ', 'T') + '+07:00').getTime() : 
-            now + (60 * 60 * 1000); // Fallback 1 jam jika tidak ada
+            now + (60 * 60 * 1000);
 
         const dataToSave = {
             _id: transactionId,
@@ -221,15 +268,14 @@ app.post('/api/deposit/create', async (req, res) => {
                 metode: metode,
                 url_pembayaran: atlanticData.url || null,
                 qr_image: atlanticData.qr_image || null,
-                // ✅ TIMESTAMP SAJA - lebih simple
                 expired_timestamp: expiredTimestamp,
             },
-            // ✅ Gunakan timestamp juga untuk created/lastChecked
             created_timestamp: now,
             last_checked_timestamp: now,
         };
 
-        const transactionsCollection = db.collection('transactions');
+        // Gunakan req.db dari middleware
+        const transactionsCollection = req.db.collection('transactions');
         await transactionsCollection.insertOne(dataToSave);
         console.log(`Deposit transaction ${transactionId} saved to MongoDB.`);
 
@@ -240,7 +286,7 @@ app.post('/api/deposit/create', async (req, res) => {
                 reff_id: dataToSave.reff_id,
                 url_pembayaran: atlanticData.url || null,
                 qr_image: atlanticData.qr_image || null,
-                expired_timestamp: expiredTimestamp // Kirim juga ke frontend
+                expired_timestamp: expiredTimestamp
             }
         });
 
@@ -265,7 +311,8 @@ app.post('/api/deposit/create', async (req, res) => {
 app.get('/api/transaction/:reff_id', async (req, res) => {
     const { reff_id } = req.params;
     try {
-        const transactionsCollection = db.collection('transactions');
+        // Gunakan req.db dari middleware
+        const transactionsCollection = req.db.collection('transactions');
         const transactionData = await transactionsCollection.findOne({ reff_id });
         
         if (!transactionData) {
@@ -277,18 +324,14 @@ app.get('/api/transaction/:reff_id', async (req, res) => {
             });
         }
 
-        // ✅ Format response dengan konversi timestamp ke Date object untuk kompatibilitas
         const enhancedData = {
             ...transactionData,
-            // Untuk kompatibilitas dengan frontend yang expect Date object
             createdAt: transactionData.created_timestamp ? 
                 new Date(transactionData.created_timestamp) : null,
-            // Tambahkan field expired_at dari timestamp untuk frontend
             data_deposit: {
                 ...transactionData.data_deposit,
                 expired_at: transactionData.data_deposit.expired_timestamp ? 
                     new Date(transactionData.data_deposit.expired_timestamp) : null,
-                // Kirim juga timestamp aslinya untuk countdown
                 expired_timestamp: transactionData.data_deposit.expired_timestamp
             }
         };
@@ -315,10 +358,10 @@ app.post('/webhook/atlantic', async (req, res) => {
     console.log(JSON.stringify(req.body, null, 2));
 
     try {
-        const transactionsCollection = db.collection('transactions');
+        // Gunakan req.db dari middleware
+        const transactionsCollection = req.db.collection('transactions');
         const { reff_id } = data;
 
-        // Cari transaksi berdasarkan reff_id
         const transactionDoc = await transactionsCollection.findOne({ reff_id });
         if (!transactionDoc) {
             console.warn(`[WEBHOOK] Transaksi dengan reff_id ${reff_id} tidak ditemukan.`);
@@ -326,16 +369,15 @@ app.post('/webhook/atlantic', async (req, res) => {
         }
 
         if (event === 'deposit' && data.status === 'processing') {
-            // Di webhook, update juga pakai timestamp
-await transactionsCollection.updateOne(
-    { reff_id },
-    {
-        $set: {
-            status: 'processing', 
-            updated_timestamp: Date.now() // ✅ Gunakan timestamp
-        }
-    }
-);
+            await transactionsCollection.updateOne(
+                { reff_id },
+                {
+                    $set: {
+                        status: 'processing', 
+                        updated_timestamp: Date.now()
+                    }
+                }
+            );
 
             const { code, target, email, nama, nickname } = transactionDoc.data_user;
             console.log(`[WEBHOOK] Deposit berhasil. Melanjutkan pembuatan transaksi untuk code: ${code}, target: ${target}`);
@@ -362,7 +404,7 @@ await transactionsCollection.updateOne(
                 }
             );
 
-            // Kirim email notifikasi pesanan diproses
+            // Kirim email notifikasi
             if (email) {
                 const mailOptions = {
                     from: '"DanzKu Store" <ihsanfuadi854@gmail.com>',
@@ -463,7 +505,7 @@ await transactionsCollection.updateOne(
     }
 });
 
-// --- FUNGSI PEMELIHARAAN (dari pemeliharaan.js) ---
+// --- FUNGSI PEMELIHARAAN ---
 const finalStatuses = ['completed', 'failed', 'canceled', 'expired'];
 
 function startCleanupService(dbInstance) {
@@ -478,7 +520,7 @@ function startCleanupService(dbInstance) {
                     {
                         status: 'pending',
                         'data_deposit.expired_timestamp': { 
-                            $lte: Date.now() // ✅ Bandingkan timestamp dengan sekarang
+                            $lte: Date.now()
                         }
                     }
                 ]
@@ -495,33 +537,35 @@ function startCleanupService(dbInstance) {
     setInterval(runCleanup, 10000);
 }
 
-// Tambahkan fungsi untuk mendapatkan IP public
+// Fungsi untuk mendapatkan IP public
 async function getPublicIp() {
     try {
         const response = await axios.get('https://api.ipify.org?format=json');
         return response.data.ip;
     } catch (error) {
         console.error('Gagal mendapatkan IP public:', error.message);
-        // Fallback ke localhost jika gagal
         return '127.0.0.1';
     }
 }
 
-// Modifikasi bagian listen server
+// Modifikasi startup server
 const internalPort = process.env.PORT || 1038;
 
-getPublicIp().then(async (publicIp) => {
-    app.listen(internalPort, '0.0.0.0', async () => {
-        console.log(`Server Express Anda berjalan di port internal: ${internalPort}`);
-        console.log(`IP Public Server: ${publicIp}`);
-        console.log(`**Untuk mengakses aplikasi dari luar, gunakan IP publik server Anda (${publicIp}) dan port ${internalPort}.**`);
-        console.log(`Contoh URL akses: http://${publicIp}:${internalPort}`);
-        console.log(`Pastikan Anda mendaftarkan URL webhook ini di Atlantic Pedia: http://${publicIp}:${internalPort}/webhook/atlantic`);
-        
-        // Jika menggunakan domain, tambahkan informasi ini
-        console.log(`\nJika Anda memiliki domain, pastikan untuk mengarahkannya ke IP: ${publicIp}`);
+// Coba koneksi MongoDB terlebih dahulu sebelum start server
+connectToMongo().then(() => {
+    getPublicIp().then(async (publicIp) => {
+        app.listen(internalPort, '0.0.0.0', async () => {
+            console.log(`Server Express Anda berjalan di port internal: ${internalPort}`);
+            console.log(`IP Public Server: ${publicIp}`);
+            console.log(`**Untuk mengakses aplikasi dari luar, gunakan IP publik server Anda (${publicIp}) dan port ${internalPort}.**`);
+            console.log(`Contoh URL akses: http://${publicIp}:${internalPort}`);
+            console.log(`Pastikan Anda mendaftarkan URL webhook ini di Atlantic Pedia: http://${publicIp}:${internalPort}/webhook/atlantic`);
+        });
+    }).catch(error => {
+        console.error('Gagal memulai server:', error);
+        process.exit(1);
     });
 }).catch(error => {
-    console.error('Gagal memulai server:', error);
+    console.error('Gagal terhubung ke MongoDB, server tidak dapat dijalankan:', error);
     process.exit(1);
 });
