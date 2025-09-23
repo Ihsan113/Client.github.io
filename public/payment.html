@@ -414,35 +414,38 @@
             }
         }
 
-        // Fungsi untuk mengupdate countdown timer
-        function updateCountdown(expiredAt) {
-            if (countdownInterval) {
-                clearInterval(countdownInterval); // Clear any existing interval
-            }
+// Di fungsi updateCountdown, gunakan timestamp langsung
+function updateCountdown(expiredTimestamp) {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
 
-            const expiredTime = new Date(expiredAt).getTime();
-            
-            countdownEl.classList.remove('hidden');
-            countdownEl.classList.add('animate__animated', 'animate__fadeIn');
+    countdownEl.classList.remove('hidden');
+    countdownEl.classList.add('animate__animated', 'animate__fadeIn');
 
-            countdownInterval = setInterval(() => {
-                const now = new Date().getTime();
-                const diff = expiredTime - now;
+    countdownInterval = setInterval(() => {
+        const now = Date.now();
+        const diff = expiredTimestamp - now;
 
-                if (diff < 0) {
-                    clearInterval(countdownInterval);
-                    countdownEl.textContent = "Waktu pembayaran telah habis.";
-                    countdownEl.classList.remove('animate__pulse', 'bg-danger-color/15', 'border-danger-color/40');
-                    countdownEl.classList.add('bg-gray-700/20', 'text-text-medium', 'border-gray-600/40');
-                    // Optionally, reload transaction to show expired status from API
-                    loadTransaction(); 
-                } else {
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                    countdownEl.textContent = `Sisa waktu: ${minutes}m ${seconds}s`;
-                }
-            }, 1000);
+        if (diff < 0) {
+            clearInterval(countdownInterval);
+            countdownEl.textContent = "Waktu pembayaran telah habis.";
+            countdownEl.classList.remove('animate__pulse', 'bg-danger-color/15', 'border-danger-color/40');
+            countdownEl.classList.add('bg-gray-700/20', 'text-text-medium', 'border-gray-600/40');
+            loadTransaction(); 
+        } else {
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            countdownEl.textContent = `Sisa waktu: ${minutes}m ${seconds}s`;
         }
+    }, 1000);
+}
+
+// Di loadTransaction, panggil dengan timestamp
+if ((data.status === 'pending' || data.status === 'unpaid') && data.data_deposit.expired_timestamp > Date.now()) {
+    updateCountdown(data.data_deposit.expired_timestamp); // ✅ Langsung pakai timestamp
+    setTimeout(loadTransaction, 10000);
+}
 
         // Fungsi utama untuk memuat data transaksi
         async function loadTransaction() {
