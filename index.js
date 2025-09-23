@@ -193,7 +193,13 @@ app.post('/api/deposit/create', async (req, res) => {
         }
 
         const atlanticData = response.data.data;
-        const transactionId = uuidv4(); // Sekarang sudah bisa digunakan
+        const transactionId = uuidv4();
+
+        // ✅ FIX: Gunakan timestamp untuk semua waktu
+        const now = Date.now();
+        const expiredTimestamp = atlanticData.expired_at ? 
+            new Date(atlanticData.expired_at.replace(' ', 'T') + '+07:00').getTime() : 
+            now + (60 * 60 * 1000); // Fallback 1 jam jika tidak ada
 
         const dataToSave = {
             _id: transactionId,
@@ -215,10 +221,12 @@ app.post('/api/deposit/create', async (req, res) => {
                 metode: metode,
                 url_pembayaran: atlanticData.url || null,
                 qr_image: atlanticData.qr_image || null,
-                expired_at: atlanticData.expired_at ? new Date(atlanticData.expired_at) : null,
+                // ✅ TIMESTAMP SAJA - lebih simple
+                expired_timestamp: expiredTimestamp,
             },
-            createdAt: new Date(),
-            lastCheckedAt: new Date(),
+            // ✅ Gunakan timestamp juga untuk created/lastChecked
+            created_timestamp: now,
+            last_checked_timestamp: now,
         };
 
         const transactionsCollection = db.collection('transactions');
@@ -232,6 +240,7 @@ app.post('/api/deposit/create', async (req, res) => {
                 reff_id: dataToSave.reff_id,
                 url_pembayaran: atlanticData.url || null,
                 qr_image: atlanticData.qr_image || null,
+                expired_timestamp: expiredTimestamp // Kirim juga ke frontend
             }
         });
 
@@ -258,6 +267,7 @@ app.get('/api/transaction/:reff_id', async (req, res) => {
     try {
         const transactionsCollection = db.collection('transactions');
         const transactionData = await transactionsCollection.findOne({ reff_id });
+        
         if (!transactionData) {
             console.log(`[GET /api/transaction/${reff_id}] Transaksi tidak ditemukan di MongoDB.`);
             return res.status(404).json({
@@ -266,7 +276,24 @@ app.get('/api/transaction/:reff_id', async (req, res) => {
                 message: 'Transaksi tidak ditemukan. Pastikan reff_id sudah benar.'
             });
         }
-        const { _id, ...filteredData } = transactionData;
+
+        // ✅ Format response dengan konversi timestamp ke Date object untuk kompatibilitas
+        const enhancedData = {
+            ...transactionData,
+            // Untuk kompatibilitas dengan frontend yang expect Date object
+            createdAt: transactionData.created_timestamp ? 
+                new Date(transactionData.created_timestamp) : null,
+            // Tambahkan field expired_at dari timestamp untuk frontend
+            data_deposit: {
+                ...transactionData.data_deposit,
+                expired_at: transactionData.data_deposit.expired_timestamp ? 
+                    new Date(transactionData.data_deposit.expired_timestamp) : null,
+                // Kirim juga timestamp aslinya untuk countdown
+                expired_timestamp: transactionData.data_deposit.expired_timestamp
+            }
+        };
+
+        const { _id, ...filteredData } = enhancedData;
         res.json({
             status: 'success',
             data: filteredData
@@ -299,10 +326,16 @@ app.post('/webhook/atlantic', async (req, res) => {
         }
 
         if (event === 'deposit' && data.status === 'processing') {
-            await transactionsCollection.updateOne(
-                { reff_id },
-                { $set: { status: 'processing', updatedAt: new Date() } }
-            );
+            // Di webhook, update juga pakai timestamp
+await transactionsCollection.updateOne(
+    { reff_id },
+    {
+        $set: {
+            status: 'processing', 
+            updated_timestamp: Date.now() // ✅ Gunakan timestamp
+        }
+    }
+);
 
             const { code, target, email, nama, nickname } = transactionDoc.data_user;
             console.log(`[WEBHOOK] Deposit berhasil. Melanjutkan pembuatan transaksi untuk code: ${code}, target: ${target}`);
@@ -444,7 +477,9 @@ function startCleanupService(dbInstance) {
                     { status: { $in: finalStatuses } },
                     {
                         status: 'pending',
-                        'data_deposit.expired_at': { $lte: new Date() }
+                        'data_deposit.expired_timestamp': { 
+                            $lte: Date.now() // ✅ Bandingkan timestamp dengan sekarang
+                        }
                     }
                 ]
             };
@@ -456,10 +491,7 @@ function startCleanupService(dbInstance) {
         }
     };
 
-    // Jalankan pembersihan pertama kali saat server dimulai
     runCleanup();
-
-    // Jalankan pembersihan setiap 10 detik
     setInterval(runCleanup, 10000);
 }
 
