@@ -258,239 +258,251 @@
         <p class="text-text-medium mt-2">Menunggu data transaksi...</p>
     </div>
 
-    <script>
-        // Ambil reff_id dari URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const reff_id = urlParams.get("reff_id");
-        const transactionDetailsEl = document.getElementById("transaction-details");
-        const paymentActionEl = document.getElementById("payment-action");
-        const countdownEl = document.getElementById("countdown");
-        const loadingOverlayEl = document.getElementById("loading-overlay");
+<script>
+    // Ambil reff_id dari URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const reff_id = urlParams.get("reff_id");
+    const transactionDetailsEl = document.getElementById("transaction-details");
+    const paymentActionEl = document.getElementById("payment-action");
+    const countdownEl = document.getElementById("countdown");
+    const loadingOverlayEl = document.getElementById("loading-overlay");
 
-        let countdownInterval; // Variable to hold the countdown interval
+    let countdownInterval;
 
-        // Fungsi untuk format tanggal
-        function formatDate(timestamp) {
-            if (!timestamp) return '-';
-            const d = new Date(timestamp);
-            // Pastikan timestamp valid
-            if (isNaN(d.getTime())) return '-';
-            return d.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-        }
-
-        // Fungsi untuk menyalin teks ke clipboard
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const copyButton = document.querySelector(`button[onclick="copyToClipboard('${text}')"]`);
-                if (copyButton) {
-                    const originalText = copyButton.innerHTML;
-                    copyButton.innerHTML = '<i class="fas fa-check-circle"></i> Disalin!';
-                    setTimeout(() => {
-                        copyButton.innerHTML = originalText;
-                    }, 2000);
-                }
-            }).catch((err) => {
-                console.error("Gagal menyalin teks:", err);
-                alert("Gagal menyalin teks.");
-            });
-        }
-
-        // Fungsi untuk menampilkan pesan error
-        function displayError(message) {
-            transactionDetailsEl.innerHTML = `
-                <div class="info-card text-center bg-danger-color/10 border-danger-color/30 animate__animated animate__fadeIn">
-                    <div class="flex flex-col items-center justify-center space-y-3 text-danger-color py-4">
-                        <i class="fas fa-exclamation-triangle text-4xl"></i>
-                        <p class="font-bold text-xl">${message}</p>
-                        <p class="text-text-medium text-sm">Mohon coba lagi nanti atau hubungi dukungan.</p>
-                    </div>
-                </div>`;
-            paymentActionEl.innerHTML = ''; // Clear payment action on error
-            countdownEl.classList.add('hidden'); // Hide countdown on error
-        }
-
-        // Fungsi untuk mengupdate detail transaksi di UI
-        function updateTransactionDetails(data) {
-            const userData = data.data_user || {};
-            const depositData = data.data_deposit || {};
-            const transactionStatus = data.status || 'unpaid';
-            const fee = (depositData.nominal || 0) - (depositData.harga_asli || 0);
-
-            const detailHtml = `
-                <div class="info-card animate__animated animate__fadeInUp">
-                    <h3><i class="fas fa-user"></i> Informasi Pembeli</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <p class="info-label">Nama</p>
-                            <p class="info-value">${userData.nama || '-'}</p>
-                        </div>
-                        <div>
-                            <p class="info-label">Email</p>
-                            <p class="info-value">${userData.email || '-'}</p>
-                        </div>
-                        <div class="md:col-span-2">
-                            <p class="info-label">ID/UID</p>
-                            <p class="info-value font-mono truncate-text" title="${userData.target || '-'}">${userData.target || '-'}</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-card animate__animated animate__fadeInUp" style="animation-delay: 0.1s;">
-                    <h3><i class="fas fa-file-invoice-dollar"></i> Detail Pembayaran</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <p class="info-label">Harga Produk</p>
-                            <p class="info-value product-price">Rp ${Number(userData.price || 0).toFixed(0).toLocaleString('id-ID')}</p>
-                        </div>
-                        <div>
-                            <p class="info-label">Fee</p>
-                            <p class="info-value">Rp ${Number(fee).toFixed(0).toLocaleString('id-ID')}</p>
-                        </div>
-                        <div>
-                            <p class="info-label">Nominal Bayar</p>
-                            <p class="info-value nominal-bayar">Rp ${Number(depositData.nominal || 0).toFixed(0).toLocaleString('id-ID')}</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-card flex flex-col md:flex-row justify-between items-center md:items-start gap-4 animate__animated animate__fadeInUp" style="animation-delay: 0.2s;">
-                    <div>
-                        <p class="info-label">Status Transaksi</p>
-                        <p class="info-value text-xl font-semibold ${
-                            transactionStatus === 'completed' ? 'status-success' :
-                            transactionStatus === 'failed' || transactionStatus === 'canceled' ? 'status-failed' :
-                            transactionStatus === 'pending' ? 'status-pending' :
-                            transactionStatus === 'paid' ? 'status-paid' :
-                            transactionStatus === 'unpaid' ? 'status-unpaid' :
-                            'text-white'
-                        }">${transactionStatus ? transactionStatus.charAt(0).toUpperCase() + transactionStatus.slice(1) : '-'}</p>
-                    </div>
-                    <div class="text-right md:text-left">
-                        <p class="info-label">Reff ID</p>
-                        <div class="flex items-center justify-end md:justify-start space-x-2">
-                            <p id="reff-id" class="info-value font-mono truncate-text max-w-[150px] md:max-w-none" title="${data.reff_id || '-'}">${data.reff_id || '-'}</p>
-                            <button onclick="copyToClipboard('${data.reff_id}')" class="btn-secondary">
-                                <i class="fas fa-copy"></i> Salin
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-card grid grid-cols-1 md:grid-cols-2 gap-4 animate__animated animate__fadeInUp" style="animation-delay: 0.3s;">
-                    <div>
-                        <p class="info-label">Dibuat Pada</p>
-                        <p class="info-value">${formatDate(data.createdAt)}</p>
-                    </div>
-                    <div>
-                        <p class="info-label">Kadaluarsa Pada</p>
-                        <p class="info-value">${depositData.expired_at ? formatDate(depositData.expired_at) : '-'}</p>
-                    </div>
-                </div>
-            `;
-            transactionDetailsEl.innerHTML = detailHtml;
-
-            // Handle payment action display
-            if (transactionStatus === 'pending' || transactionStatus === 'unpaid') {
-                if (depositData.qr_image) {
-                    paymentActionEl.innerHTML = `
-                        <p class="mb-5 text-xl font-medium text-text-light animate__animated animate__fadeIn">Scan QR Code untuk membayar:</p>
-                        <img src="${depositData.qr_image}" alt="QRIS" class="mx-auto mb-6 rounded-lg border-2 border-secondary-accent shadow-lg animate__animated animate__zoomIn" style="max-width: 280px; width: 80%;">
-                        <a href="${depositData.qr_image}" download="QRIS_${data.reff_id}.png" class="btn-primary animate__animated animate__pulse">
-                            <i class="fas fa-download"></i> Download QR Code
-                        </a>
-                    `;
-                } else if (depositData.url_pembayaran) {
-                    paymentActionEl.innerHTML = `
-                        <a href="${depositData.url_pembayaran}" target="_blank" class="btn-primary animate__animated animate__pulse">
-                            <i class="fas fa-wallet"></i> Bayar Sekarang
-                        </a>
-                    `;
-                } else {
-                    paymentActionEl.innerHTML = `
-                        <p class="text-text-medium text-lg animate__animated animate__fadeIn">Tidak ada metode pembayaran yang tersedia untuk transaksi ini.</p>
-                    `;
-                }
-            } else {
-                paymentActionEl.innerHTML = `
-                    <p class="text-text-medium text-lg animate__animated animate__fadeIn">Transaksi telah ${transactionStatus === 'completed' ? 'berhasil' : transactionStatus === 'paid' ? 'dibayar' : transactionStatus}.</p>
-                `;
-            }
-        }
-
-// Di fungsi updateCountdown, gunakan timestamp langsung
-function updateCountdown(expiredTimestamp) {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
+    // Fungsi untuk format tanggal
+    function formatDate(timestamp) {
+        if (!timestamp) return '-';
+        const d = new Date(timestamp);
+        if (isNaN(d.getTime())) return '-';
+        return d.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
     }
 
-    countdownEl.classList.remove('hidden');
-    countdownEl.classList.add('animate__animated', 'animate__fadeIn');
-
-    countdownInterval = setInterval(() => {
-        const now = Date.now();
-        const diff = expiredTimestamp - now;
-
-        if (diff < 0) {
-            clearInterval(countdownInterval);
-            countdownEl.textContent = "Waktu pembayaran telah habis.";
-            countdownEl.classList.remove('animate__pulse', 'bg-danger-color/15', 'border-danger-color/40');
-            countdownEl.classList.add('bg-gray-700/20', 'text-text-medium', 'border-gray-600/40');
-            loadTransaction(); 
-        } else {
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            countdownEl.textContent = `Sisa waktu: ${minutes}m ${seconds}s`;
-        }
-    }, 1000);
-}
-
-// Di loadTransaction, panggil dengan timestamp
-if ((data.status === 'pending' || data.status === 'unpaid') && data.data_deposit.expired_timestamp > Date.now()) {
-    updateCountdown(data.data_deposit.expired_timestamp); // ✅ Langsung pakai timestamp
-    setTimeout(loadTransaction, 10000);
-}
-
-        // Fungsi utama untuk memuat data transaksi
-        async function loadTransaction() {
-            loadingOverlayEl.classList.remove("hidden"); // Show global loading overlay
-            
-            try {
-                const res = await fetch(`https://danzkugamestore.vercel.app/api/transaction/${reff_id}`);
-                const json = await res.json();
-                
-                if (json.status !== "success") {
-                    displayError(json.message || "Transaksi tidak ditemukan.");
-                    return;
-                }
-
-                const data = json.data;
-                updateTransactionDetails(data);
-
-                // Start countdown only if transaction is pending and not expired
-                const now = new Date().getTime();
-                const expiredTime = data.data_deposit.expired_at ? new Date(data.data_deposit.expired_at).getTime() : 0;
-
-                if ((data.status === 'pending' || data.status === 'unpaid') && expiredTime > now) {
-                    updateCountdown(data.data_deposit.expired_at);
-                    // Automatically refresh transaction status every 10 seconds if pending/unpaid
-                    setTimeout(loadTransaction, 10000); 
-                } else {
-                    clearInterval(countdownInterval); // Stop countdown if status is not pending/unpaid or already expired
-                    countdownEl.classList.add('hidden');
-                }
-
-            } catch (err) {
-                console.error("Error loading transaction:", err);
-                displayError("Gagal memuat data transaksi. Terjadi kesalahan jaringan.");
-            } finally {
-                loadingOverlayEl.classList.add("hidden"); // Hide global loading overlay
+    // Fungsi untuk menyalin teks ke clipboard
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const copyButton = document.querySelector(`button[onclick="copyToClipboard('${text}')"]`);
+            if (copyButton) {
+                const originalText = copyButton.innerHTML;
+                copyButton.innerHTML = '<i class="fas fa-check-circle"></i> Disalin!';
+                setTimeout(() => {
+                    copyButton.innerHTML = originalText;
+                }, 2000);
             }
+        }).catch((err) => {
+            console.error("Gagal menyalin teks:", err);
+            alert("Gagal menyalin teks.");
+        });
+    }
+
+    // Fungsi untuk menampilkan pesan error
+    function displayError(message) {
+        transactionDetailsEl.innerHTML = `
+            <div class="info-card text-center bg-danger-color/10 border-danger-color/30 animate__animated animate__fadeIn">
+                <div class="flex flex-col items-center justify-center space-y-3 text-danger-color py-4">
+                    <i class="fas fa-exclamation-triangle text-4xl"></i>
+                    <p class="font-bold text-xl">${message}</p>
+                    <p class="text-text-medium text-sm">Mohon coba lagi nanti atau hubungi dukungan.</p>
+                </div>
+            </div>`;
+        paymentActionEl.innerHTML = '';
+        countdownEl.classList.add('hidden');
+    }
+
+    // Fungsi untuk mengupdate detail transaksi di UI
+    function updateTransactionDetails(data) {
+        const userData = data.data_user || {};
+        const depositData = data.data_deposit || {};
+        const transactionStatus = data.status || 'unpaid';
+        const fee = (depositData.nominal || 0) - (depositData.harga_asli || 0);
+
+        // ✅ FIX: Gunakan expired_timestamp jika ada, fallback ke expired_at
+        const expiredTimestamp = depositData.expired_timestamp || 
+                               (depositData.expired_at ? new Date(depositData.expired_at).getTime() : null);
+
+        const detailHtml = `
+            <div class="info-card animate__animated animate__fadeInUp">
+                <h3><i class="fas fa-user"></i> Informasi Pembeli</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="info-label">Nama</p>
+                        <p class="info-value">${userData.nama || '-'}</p>
+                    </div>
+                    <div>
+                        <p class="info-label">Email</p>
+                        <p class="info-value">${userData.email || '-'}</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <p class="info-label">ID/UID</p>
+                        <p class="info-value font-mono truncate-text" title="${userData.target || '-'}">${userData.target || '-'}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="info-card animate__animated animate__fadeInUp" style="animation-delay: 0.1s;">
+                <h3><i class="fas fa-file-invoice-dollar"></i> Detail Pembayaran</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <p class="info-label">Harga Produk</p>
+                        <p class="info-value product-price">Rp ${Number(userData.price || 0).toFixed(0).toLocaleString('id-ID')}</p>
+                    </div>
+                    <div>
+                        <p class="info-label">Fee</p>
+                        <p class="info-value">Rp ${Number(fee).toFixed(0).toLocaleString('id-ID')}</p>
+                    </div>
+                    <div>
+                        <p class="info-label">Nominal Bayar</p>
+                        <p class="info-value nominal-bayar">Rp ${Number(depositData.nominal || 0).toFixed(0).toLocaleString('id-ID')}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="info-card flex flex-col md:flex-row justify-between items-center md:items-start gap-4 animate__animated animate__fadeInUp" style="animation-delay: 0.2s;">
+                <div>
+                    <p class="info-label">Status Transaksi</p>
+                    <p class="info-value text-xl font-semibold ${
+                        transactionStatus === 'completed' ? 'status-success' :
+                        transactionStatus === 'failed' || transactionStatus === 'canceled' ? 'status-failed' :
+                        transactionStatus === 'pending' ? 'status-pending' :
+                        transactionStatus === 'paid' ? 'status-paid' :
+                        transactionStatus === 'unpaid' ? 'status-unpaid' :
+                        'text-white'
+                    }">${transactionStatus ? transactionStatus.charAt(0).toUpperCase() + transactionStatus.slice(1) : '-'}</p>
+                </div>
+                <div class="text-right md:text-left">
+                    <p class="info-label">Reff ID</p>
+                    <div class="flex items-center justify-end md:justify-start space-x-2">
+                        <p id="reff-id" class="info-value font-mono truncate-text max-w-[150px] md:max-w-none" title="${data.reff_id || '-'}">${data.reff_id || '-'}</p>
+                        <button onclick="copyToClipboard('${data.reff_id}')" class="btn-secondary">
+                            <i class="fas fa-copy"></i> Salin
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="info-card grid grid-cols-1 md:grid-cols-2 gap-4 animate__animated animate__fadeInUp" style="animation-delay: 0.3s;">
+                <div>
+                    <p class="info-label">Dibuat Pada</p>
+                    <p class="info-value">${formatDate(data.createdAt)}</p>
+                </div>
+                <div>
+                    <p class="info-label">Kadaluarsa Pada</p>
+                    <p class="info-value">${expiredTimestamp ? formatDate(expiredTimestamp) : '-'}</p>
+                </div>
+            </div>
+        `;
+        transactionDetailsEl.innerHTML = detailHtml;
+
+        // Handle payment action display
+        if (transactionStatus === 'pending' || transactionStatus === 'unpaid') {
+            if (depositData.qr_image) {
+                paymentActionEl.innerHTML = `
+                    <p class="mb-5 text-xl font-medium text-text-light animate__animated animate__fadeIn">Scan QR Code untuk membayar:</p>
+                    <img src="${depositData.qr_image}" alt="QRIS" class="mx-auto mb-6 rounded-lg border-2 border-secondary-accent shadow-lg animate__animated animate__zoomIn" style="max-width: 280px; width: 80%;">
+                    <a href="${depositData.qr_image}" download="QRIS_${data.reff_id}.png" class="btn-primary animate__animated animate__pulse">
+                        <i class="fas fa-download"></i> Download QR Code
+                    </a>
+                `;
+            } else if (depositData.url_pembayaran) {
+                paymentActionEl.innerHTML = `
+                    <a href="${depositData.url_pembayaran}" target="_blank" class="btn-primary animate__animated animate__pulse">
+                        <i class="fas fa-wallet"></i> Bayar Sekarang
+                    </a>
+                `;
+            } else {
+                paymentActionEl.innerHTML = `
+                    <p class="text-text-medium text-lg animate__animated animate__fadeIn">Tidak ada metode pembayaran yang tersedia untuk transaksi ini.</p>
+                `;
+            }
+        } else {
+            paymentActionEl.innerHTML = `
+                <p class="text-text-medium text-lg animate__animated animate__fadeIn">Transaksi telah ${transactionStatus === 'completed' ? 'berhasil' : transactionStatus === 'paid' ? 'dibayar' : transactionStatus}.</p>
+            `;
         }
 
-        // Inisialisasi: Periksa reff_id dan muat transaksi
-        if (!reff_id) {
-            loadingOverlayEl.classList.add("hidden"); // Hide loading if no reff_id
-            displayError("Reff ID tidak ditemukan di URL. Pastikan Anda mengakses tautan yang benar.");
-        } else {
-            loadTransaction();
+        return expiredTimestamp; // Return timestamp untuk countdown
+    }
+
+    // Fungsi untuk mengupdate countdown timer
+    function updateCountdown(expiredTimestamp) {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
         }
-    </script>
+
+        if (!expiredTimestamp) {
+            countdownEl.classList.add('hidden');
+            return;
+        }
+
+        countdownEl.classList.remove('hidden');
+        countdownEl.classList.add('animate__animated', 'animate__fadeIn');
+
+        countdownInterval = setInterval(() => {
+            const now = Date.now();
+            const diff = expiredTimestamp - now;
+
+            if (diff < 0) {
+                clearInterval(countdownInterval);
+                countdownEl.textContent = "Waktu pembayaran telah habis.";
+                countdownEl.classList.remove('animate__pulse', 'bg-danger-color/15', 'border-danger-color/40');
+                countdownEl.classList.add('bg-gray-700/20', 'text-text-medium', 'border-gray-600/40');
+                loadTransaction(); 
+            } else {
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                countdownEl.textContent = `Sisa waktu: ${minutes}m ${seconds}s`;
+            }
+        }, 1000);
+    }
+
+    // Fungsi utama untuk memuat data transaksi
+    async function loadTransaction() {
+        loadingOverlayEl.classList.remove("hidden");
+        
+        try {
+            const res = await fetch(`https://danzkugamestore.vercel.app/api/transaction/${reff_id}`);
+            const json = await res.json();
+            
+            if (json.status !== "success") {
+                displayError(json.message || "Transaksi tidak ditemukan.");
+                return;
+            }
+
+            const data = json.data;
+            
+            // ✅ FIX: Dapatkan timestamp dari updateTransactionDetails
+            const expiredTimestamp = updateTransactionDetails(data);
+
+            // Start countdown only if transaction is pending and not expired
+            const now = Date.now();
+            const isPending = data.status === 'pending' || data.status === 'unpaid';
+            const notExpired = expiredTimestamp && expiredTimestamp > now;
+
+            if (isPending && notExpired) {
+                updateCountdown(expiredTimestamp);
+                // Automatically refresh every 10 seconds
+                setTimeout(loadTransaction, 10000); 
+            } else {
+                clearInterval(countdownInterval);
+                countdownEl.classList.add('hidden');
+                
+                // Jika pending tapi expired, refresh untuk update status
+                if (isPending && expiredTimestamp && expiredTimestamp <= now) {
+                    setTimeout(loadTransaction, 5000);
+                }
+            }
+
+        } catch (err) {
+            console.error("Error loading transaction:", err);
+            displayError("Gagal memuat data transaksi. Terjadi kesalahan jaringan.");
+        } finally {
+            loadingOverlayEl.classList.add("hidden");
+        }
+    }
+
+    // Inisialisasi
+    if (!reff_id) {
+        loadingOverlayEl.classList.add("hidden");
+        displayError("Reff ID tidak ditemukan di URL. Pastikan Anda mengakses tautan yang benar.");
+    } else {
+        loadTransaction();
+    }
+</script>
 </body>
 </html>
