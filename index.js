@@ -99,7 +99,7 @@ const transporter = nodemailer.createTransport({
 
 // --- KONFIGURASI ATLANTIC PEDIA API ---
 const ATLANTIC_API_KEY = 'mkbtL4HPQ8Gp0Vw4rezoPXzhzN85y5gf';
-const ATLANTIC_BASE_URL = 'http://188.166.182.233:1060/layanan';
+const ATLANTIC_BASE_URL = 'http://134.209.110.167:1077/layanan';
 
 // Middleware untuk mencatat semua permintaan dengan body JSON
 app.use((req, res, next) => {
