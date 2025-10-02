@@ -505,6 +505,164 @@ app.post('/webhook/atlantic', async (req, res) => {
     }
 });
 
+// --- ENDPOINT CEK STATUS DEPOSIT (Manual Check) ---
+app.post('/api/check-deposit-status', async (req, res) => {
+    const { id_deposit } = req.body;
+    
+    if (!id_deposit) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'id_deposit tidak boleh kosong'
+        });
+    }
+
+    try {
+        console.log(`\n=== Manual Check Deposit Status: ${id_deposit} ===`);
+        
+        // 1. Cek ke Atlantic Pedia API
+        const atlanticPayload = {
+            api_key: ATLANTIC_API_KEY,
+            id_deposit: id_deposit
+        };
+
+        console.log('Payload ke Atlantic Pedia:');
+        console.log(JSON.stringify(atlanticPayload, null, 2));
+
+        const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_status`, atlanticPayload);
+        
+        console.log('Response dari Atlantic Pedia:');
+        console.log(JSON.stringify(response.data, null, 2));
+
+        // 2. Jika deposit SUCCESS, buat transaksi otomatis
+        if (response.data.status === true && response.data.data.status === 'success') {
+            const depositData = response.data.data;
+            
+            console.log(`✅ Deposit ${id_deposit} SUCCESS! Melanjutkan pembuatan transaksi...`);
+
+            // 3. Cari data transaksi di database berdasarkan reff_id
+            const transactionsCollection = req.db.collection('transactions');
+            const transactionDoc = await transactionsCollection.findOne({ 
+                'data_deposit.id_pembayaran_provider': id_deposit 
+            });
+
+            if (!transactionDoc) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Data transaksi tidak ditemukan untuk deposit ini'
+                });
+            }
+
+            const { code, target, email, nama, nickname, reff_id } = transactionDoc.data_user;
+
+            // 4. Buat transaksi di Atlantic Pedia
+            const transactionPayload = {
+                api_key: ATLANTIC_API_KEY,
+                target: target,
+                code: code,
+                reff_id: reff_id
+            };
+
+            console.log('Membuat transaksi di Atlantic Pedia:');
+            console.log(JSON.stringify(transactionPayload, null, 2));
+
+            const createTransactionResponse = await axios.post(`${ATLANTIC_BASE_URL}/transaksi_create`, transactionPayload);
+            const transactionDetails = createTransactionResponse.data.data;
+
+            // 5. Update database
+            await transactionsCollection.updateOne(
+                { 'data_deposit.id_pembayaran_provider': id_deposit },
+                {
+                    $set: {
+                        status: 'processing',
+                        'data_user.id_transaksi_provider': transactionDetails.id,
+                        'data_user.status_transaksi_atlantic': transactionDetails.status,
+                        'data_user.atlanticApiTransactionResponse': createTransactionResponse.data,
+                        updatedAt: new Date(),
+                        last_checked_timestamp: Date.now()
+                    }
+                }
+            );
+
+            // 6. Kirim email notifikasi
+            if (email) {
+                const mailOptions = {
+                    from: '"DanzKu Store" <ihsanfuadi854@gmail.com>',
+                    to: email,
+                    subject: '🚀 Pesananmu Sedang Diproses di DanzKu Store!',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+                            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                                <div style="background-color: #007bff; color: #ffffff; padding: 20px; text-align: center;">
+                                    <h1 style="margin: 0;">Pesanan Sedang Diproses!</h1>
+                                </div>
+                                <div style="padding: 20px;">
+                                    <p>Halo <strong>${nickname || 'Pelanggan'}</strong>, 👋</p>
+                                    <p>Terima kasih telah berbelanja di DanzKu Store. Pembayaranmu telah berhasil kami terima. Pesanan dengan detail berikut sedang kami proses:</p>
+                                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background-color: #fafafa;">
+                                        <h3 style="margin-top: 0; color: #333;">Detail Pesanan</h3>
+                                        <ul style="list-style-type: none; padding: 0; margin: 0;">
+                                            <li style="margin-bottom: 10px;"><strong>Produk:</strong> ${nama}</li>
+                                            <li style="margin-bottom: 10px;"><strong>ID Transaksi:</strong> ${reff_id}</li>
+                                            <li style="margin-bottom: 10px;"><strong>Status Pembayaran:</strong> Berhasil ✔️</li>
+                                            <li style="margin-bottom: 0;"><strong>Status Pesanan:</strong> Sedang Diproses ⏳</li>
+                                        </ul>
+                                    </div>
+                                    <p style="text-align: center; margin-top: 20px;">Kami akan mengirimkan notifikasi lagi setelah pesananmu selesai diproses. Mohon ditunggu ya! 😊</p>
+                                </div>
+                                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 12px; color: #888;">
+                                    <p style="margin: 0;">DanzKu Store. Terima kasih telah mempercayakan kami.</p>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                };
+                
+                transporter.sendMail(mailOptions)
+                    .then(() => console.log('✅ Email notifikasi pemrosesan berhasil dikirim ke', email))
+                    .catch((err) => console.error('❌ Gagal kirim email notifikasi:', err.message));
+            }
+
+            return res.json({
+                status: 'success',
+                message: 'Deposit berhasil dan transaksi sedang diproses',
+                data: {
+                    deposit_status: 'success',
+                    transaction_created: true,
+                    transaction_id: transactionDetails.id,
+                    reff_id: reff_id
+                }
+            });
+
+        } else {
+            // Deposit belum success
+            return res.json({
+                status: 'success',
+                message: 'Status deposit berhasil dicek',
+                data: {
+                    deposit_status: response.data.data?.status || 'unknown',
+                    transaction_created: false
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Error saat cek status deposit:', error.response?.data || error.message);
+        
+        if (error.response?.status === 404) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Data deposit tidak ditemukan'
+            });
+        }
+        
+        res.status(500).json({
+            status: 'error',
+            message: 'Gagal memeriksa status deposit',
+            error: error.response?.data || error.message
+        });
+    }
+});
+
 // --- FUNGSI PEMELIHARAAN ---
 const finalStatuses = ['completed', 'failed', 'canceled', 'expired'];
 
