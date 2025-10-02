@@ -164,6 +164,83 @@ app.post('/produk', async (req, res) => {
     }
 });
 
+app.post('/produk', async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Nama provider tidak boleh kosong' });
+
+    try {
+        const { data } = await axios.post(
+            `${ATLANTIC_BASE_URL}/price_list`,
+            { api_key: ATLANTIC_API_KEY, type: 'prabayar' }
+        );
+
+        if (!data.status || !Array.isArray(data.data)) {
+            return res.status(500).json({ error: 'Gagal mengambil data produk dari Atlantic Pedia' });
+        }
+        
+        const providerName = name.toLowerCase();
+        const filtered = data.data.reduce((acc, item) => {
+            if (!item.provider) return acc;
+            const provider = item.provider.toLowerCase();
+            const status = String(item.status).toLowerCase();
+            if (
+                provider === providerName &&
+                (status === 'true' || status === 'active' || status === 'available')
+            ) {
+                acc.push({
+                    code: item.code,
+                    name: item.name,
+                    note: item.note,
+                    type: item.type,
+                    provider: item.provider,
+                    price: item.price
+                });
+            }
+            return acc;
+        }, []);
+
+        if (filtered.length === 0) {
+            return res.status(404).json({ error: `Produk untuk provider "${name}" tidak ditemukan atau tidak tersedia.` });
+        }
+        res.json(filtered);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Gagal mengambil data produk', details: err.message });
+    }
+});
+
+app.get('/deposit-methods', async (req, res) => {
+    try {
+        const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_metode`, {
+            api_key: ATLANTIC_API_KEY,
+            type: 'ewallet'
+        });
+
+        if (response.data.status === true) {
+            const filtered = response.data.data
+                .filter(item => item.status === "aktif")
+                .map(item => {
+                    return {
+                        metode: item.metode,
+                        fee_persen: item.fee_persen,
+                        fee: item.fee,
+                        minimum: item.min,
+                        status: item.status,
+                        type: item.type,
+                        img_url: item.img_url,
+                    };
+                });
+
+            res.json({ status: true, data: filtered });
+        } else {
+            res.status(500).json({ status: false, message: 'Gagal mengambil data dari API Atlantic' });
+        }
+    } catch (error) {
+        res.status(500).json({ status: false, message: error.message });
+    }
+});
+
+
 // Endpoint untuk membuat deposit (Pembayaran)
 app.post('/api/deposit/create', async (req, res) => {
     const { nominal, metode, reff_id, target, nama, email, nickname, price, provider, code } = req.body;
