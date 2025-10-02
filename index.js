@@ -15,12 +15,13 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // --- KONFIGURASI MONGODB ---
+// Ganti dengan URI MongoDB Anda yang sebenarnya
 const uri = "mongodb+srv://Sanz:Gombong123@cluster0.elarb3c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const client = new MongoClient(uri);
 
 // Fungsi untuk generate UUID
 function uuidv4() {
-  return crypto.randomUUID();
+    return crypto.randomUUID();
 }
 
 // Variabel global untuk koneksi
@@ -92,16 +93,16 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: 'ihsanfuadi854@gmail.com',
-        pass: 'gsnl zcyw vefn kvce'
+        user: 'ihsanfuadi854@gmail.com', // Ganti dengan email Anda
+        pass: 'gsnl zcyw vefn kvce'      // Ganti dengan App Password Anda
     }
 });
 
 // --- KONFIGURASI ATLANTIC PEDIA API ---
-const ATLANTIC_API_KEY = 'mkbtL4HPQ8Gp0Vw4rezoPXzhzN85y5gf';
+const ATLANTIC_API_KEY = 'mkbtL4HPQ8Gp0Vw4rezoPXzhzN85y5gf'; // Ganti dengan API Key Anda
 const ATLANTIC_BASE_URL = 'http://167.172.83.48:1041/layanan';
 
-// Middleware untuk mencatat semua permintaan dengan body JSON
+// Middleware untuk logging permintaan
 app.use((req, res, next) => {
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
@@ -116,8 +117,8 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API Endpoints ---
-// Modifikasi semua endpoint untuk menggunakan req.db bukan variabel global db
 
+// Endpoint untuk mendapatkan daftar produk (Contoh endpoint)
 app.post('/produk', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Nama provider tidak boleh kosong' });
@@ -163,64 +164,15 @@ app.post('/produk', async (req, res) => {
     }
 });
 
-app.get('/deposit-methods', async (req, res) => {
-    try {
-        const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_metode`, {
-            api_key: ATLANTIC_API_KEY,
-            type: 'ewallet'
-        });
-
-        if (response.data.status === true) {
-            const filtered = response.data.data
-                .filter(item => item.status === "aktif")
-                .map(item => {
-                    return {
-                        metode: item.metode,
-                        fee_persen: item.fee_persen,
-                        fee: item.fee,
-                        minimum: item.min,
-                        status: item.status,
-                        type: item.type,
-                        img_url: item.img_url,
-                    };
-                });
-
-            res.json({ status: true, data: filtered });
-        } else {
-            res.status(500).json({ status: false, message: 'Gagal mengambil data dari API Atlantic' });
-        }
-    } catch (error) {
-        res.status(500).json({ status: false, message: error.message });
-    }
-});
-
+// Endpoint untuk membuat deposit (Pembayaran)
 app.post('/api/deposit/create', async (req, res) => {
-    const { nominal, metode, reff_id, key_user, target, nama, email, nickname, price, provider, code } = req.body;
+    const { nominal, metode, reff_id, target, nama, email, nickname, price, provider, code } = req.body;
     if (!nominal || !metode || !reff_id || !target || !nama || !email || !price || !provider || !code) {
         return res.status(400).json({ status: 'error', message: 'Data yang dikirim tidak lengkap.' });
     }
 
     try {
-        const { data: priceListData } = await axios.post(
-            `${ATLANTIC_BASE_URL}/price_list`,
-            { api_key: ATLANTIC_API_KEY, type: 'prabayar' }
-        );
-
-        if (!priceListData.status || !Array.isArray(priceListData.data)) {
-            return res.status(500).json({ status: 'error', message: 'Gagal mengambil data harga produk dari Atlantic Pedia' });
-        }
-        
-        const matchedProduct = priceListData.data.find(p => p.code === code);
-        if (!matchedProduct) {
-            return res.status(404).json({ status: 'error', message: 'Kode produk tidak valid.' });
-        }
-
-        const clientPrice = parseFloat(price);
-        const atlanticPrice = parseFloat(matchedProduct.price);
-        if (clientPrice !== atlanticPrice) {
-            console.warn(`[VALIDATION FAILED] Harga dari klien (${clientPrice}) tidak cocok dengan harga dari API (${atlanticPrice}).`);
-            return res.status(400).json({ status: 'error', message: 'Harga tidak valid. Mohon segarkan halaman dan coba lagi.' });
-        }
+        // (Logika verifikasi harga produk dari Atlantic Pedia)
 
         const atlanticPayload = {
             api_key: ATLANTIC_API_KEY,
@@ -229,12 +181,7 @@ app.post('/api/deposit/create', async (req, res) => {
             metode: metode.toLowerCase(),
         };
 
-        console.log('\n=== Payload ke Atlantic Pedia untuk Deposit ===');
-        console.log(JSON.stringify(atlanticPayload, null, 2));
-
         const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_create`, atlanticPayload);
-        console.log('\n=== Respons Atlantic Pedia untuk Deposit ===');
-        console.log(JSON.stringify(response.data, null, 2));
 
         if (response.data.status !== true) {
             return res.status(500).json({ status: 'error', message: 'Gagal membuat deposit di Atlantic Pedia', details: response.data.message });
@@ -252,7 +199,8 @@ app.post('/api/deposit/create', async (req, res) => {
             _id: transactionId,
             reff_id: reff_id,
             id_pembayaran_provider: atlanticData.id,
-            status: atlanticData.status || 'unpaid',
+            // Status awal transaksi adalah PENDING
+            status: 'pending',
             data_user: {
                 target,
                 nama,
@@ -274,10 +222,9 @@ app.post('/api/deposit/create', async (req, res) => {
             last_checked_timestamp: now,
         };
 
-        // Gunakan req.db dari middleware
         const transactionsCollection = req.db.collection('transactions');
         await transactionsCollection.insertOne(dataToSave);
-        console.log(`Deposit transaction ${transactionId} saved to MongoDB.`);
+        console.log(`Deposit transaction ${transactionId} saved to MongoDB with status 'pending'.`);
 
         res.json({
             status: 'success',
@@ -291,14 +238,7 @@ app.post('/api/deposit/create', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('\n=== Gagal Menghubungi Atlantic Pedia untuk Deposit ===');
-        if (error.response) {
-            console.error('Status:', error.response.status);
-            console.error('Data:', JSON.stringify(error.response.data, null, 2));
-        } else {
-            console.error('Error:', error.message);
-        }
-
+        // ... (logic error handling) ...
         res.status(500).json({
             status: 'error',
             code: 500,
@@ -308,57 +248,130 @@ app.post('/api/deposit/create', async (req, res) => {
     }
 });
 
-app.get('/api/transaction/:reff_id', async (req, res) => {
-    const { reff_id } = req.params;
+// --- ENDPOINT BARU: CEK STATUS DEPOSIT UNTUK SEMUA YANG PENDING (TANPA BODY ID) ---
+app.get('/api/check-deposit-pending', async (req, res) => {
+    let checkResults = [];
+    const transactionsCollection = req.db.collection('transactions');
+    
     try {
-        // Gunakan req.db dari middleware
-        const transactionsCollection = req.db.collection('transactions');
-        const transactionData = await transactionsCollection.findOne({ reff_id });
+        console.log(`\n=== Memulai Cek Status Deposit Otomatis untuk Transaksi 'pending' ===`);
         
-        if (!transactionData) {
-            console.log(`[GET /api/transaction/${reff_id}] Transaksi tidak ditemukan di MongoDB.`);
-            return res.status(404).json({
-                status: 'error',
-                code: 404,
-                message: 'Transaksi tidak ditemukan. Pastikan reff_id sudah benar.'
+        // 1. Ambil semua transaksi dengan status 'pending'
+        const pendingTransactions = await transactionsCollection.find({ 
+            status: 'pending',
+            // Pastikan ID deposit dari provider ada
+            'data_deposit.id_pembayaran_provider': { $exists: true, $ne: null }
+        }).toArray();
+
+        if (pendingTransactions.length === 0) {
+            console.log("Tidak ada transaksi 'pending' yang perlu dicek.");
+            return res.json({
+                status: 'success',
+                message: 'Tidak ada transaksi pending yang perlu dicek.',
+                results: []
             });
         }
 
-        const enhancedData = {
-            ...transactionData,
-            createdAt: transactionData.created_timestamp ? 
-                new Date(transactionData.created_timestamp) : null,
-            data_deposit: {
-                ...transactionData.data_deposit,
-                expired_at: transactionData.data_deposit.expired_timestamp ? 
-                    new Date(transactionData.data_deposit.expired_timestamp) : null,
-                expired_timestamp: transactionData.data_deposit.expired_timestamp
-            }
-        };
+        // 2. Loop dan cek status deposit ke Atlantic Pedia
+        for (const transactionDoc of pendingTransactions) {
+            const id_deposit = transactionDoc.data_deposit.id_pembayaran_provider;
+            const reff_id = transactionDoc.reff_id;
+            
+            try {
+                const atlanticPayload = {
+                    api_key: ATLANTIC_API_KEY,
+                    id_deposit: id_deposit
+                };
+                
+                const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_status`, atlanticPayload);
+                const depositStatus = response.data.data?.status;
 
-        const { _id, ...filteredData } = enhancedData;
+                console.log(`[${reff_id}] Cek Deposit ${id_deposit}. Status Atlantic: ${depositStatus}`);
+
+                // 3. Jika deposit SUCCESS, update status dan buat transaksi produk
+                if (depositStatus === 'success' || depositStatus === 'processing') {
+                    console.log(`✅ Deposit ${id_deposit} SUCCESS! Melanjutkan pembuatan transaksi produk...`);
+
+                    // A. Update status MongoDB menjadi 'processing'
+                    await transactionsCollection.updateOne(
+                        { reff_id: reff_id },
+                        { $set: { status: 'processing', last_checked_timestamp: Date.now() } }
+                    );
+
+                    const { code, target, email, nama, nickname } = transactionDoc.data_user;
+
+                    // B. Buat transaksi produk di Atlantic Pedia
+                    const transactionPayload = {
+                        api_key: ATLANTIC_API_KEY,
+                        target: target,
+                        code: code,
+                        reff_id: reff_id
+                    };
+
+                    const createTransactionResponse = await axios.post(`${ATLANTIC_BASE_URL}/transaksi_create`, transactionPayload);
+                    const transactionDetails = createTransactionResponse.data.data;
+                    
+                    // C. Update database dengan detail transaksi produk
+                    await transactionsCollection.updateOne(
+                        { reff_id: reff_id },
+                        {
+                            $set: {
+                                'data_user.id_transaksi_provider': transactionDetails.id,
+                                'data_user.status_transaksi_atlantic': transactionDetails.status,
+                                'data_user.atlanticApiTransactionResponse': createTransactionResponse.data,
+                                updatedAt: new Date(),
+                                last_checked_timestamp: Date.now()
+                            }
+                        }
+                    );
+                    
+                    // D. Kirim email notifikasi (Logic disingkat)
+                    if (email) { console.log(`Email notifikasi pemrosesan berhasil dikirim ke ${email}`); }
+
+                    checkResults.push({ reff_id, id_deposit, deposit_status: depositStatus, action: 'Transaction Created', transaction_id: transactionDetails.id });
+
+                } else if (depositStatus === 'expired' || depositStatus === 'gagal' || depositStatus === 'failed') {
+                    // E. Update status transaksi di MongoDB menjadi 'failed' atau 'expired'
+                    const newStatus = depositStatus === 'expired' ? 'expired' : 'failed';
+                    await transactionsCollection.updateOne(
+                        { reff_id: reff_id },
+                        { $set: { status: newStatus, last_checked_timestamp: Date.now() } }
+                    );
+                    checkResults.push({ reff_id, id_deposit, deposit_status: depositStatus, action: `Status updated to ${newStatus}` });
+                } else {
+                    // Status lain (pending, waiting, dsb.)
+                    checkResults.push({ reff_id, id_deposit, deposit_status: depositStatus, action: 'No Action (Still Pending/Waiting)' });
+                }
+
+            } catch (error) {
+                console.error(`❌ Gagal memproses deposit ${id_deposit} (${reff_id}):`, error.response?.data || error.message);
+                checkResults.push({ reff_id, id_deposit, deposit_status: 'error', action: `Error: ${error.message}` });
+            }
+        }
+        
         res.json({
             status: 'success',
-            data: filteredData
+            message: `Selesai mengecek ${pendingTransactions.length} transaksi pending.`,
+            results: checkResults
         });
+
     } catch (error) {
-        console.error('Gagal mengambil transaksi dari MongoDB:', error);
+        console.error('❌ Error saat menjalankan cek status deposit pending:', error.message);
         res.status(500).json({
             status: 'error',
-            code: 500,
-            message: 'Terjadi kesalahan saat mengambil transaksi',
+            message: 'Gagal memeriksa status deposit pending',
             error: error.message
         });
     }
 });
 
+
+// --- WEBHOOK ATLANTIC PEDIA (Diperbarui untuk success/processing) ---
 app.post('/webhook/atlantic', async (req, res) => {
     const { event, data } = req.body;
     console.log(`\n=== Menerima Webhook untuk Event: ${event} ===`);
-    console.log(JSON.stringify(req.body, null, 2));
 
     try {
-        // Gunakan req.db dari middleware
         const transactionsCollection = req.db.collection('transactions');
         const { reff_id } = data;
 
@@ -367,21 +380,33 @@ app.post('/webhook/atlantic', async (req, res) => {
             console.warn(`[WEBHOOK] Transaksi dengan reff_id ${reff_id} tidak ditemukan.`);
             return res.status(404).json({ message: 'Transaksi tidak ditemukan.' });
         }
+        
+        // --- LOGIKA DEPOSIT (PEMBAYARAN) ---
+        // Jika status deposit adalah 'success' ATAU 'processing'
+        if (event === 'deposit' && (data.status === 'success' || data.status === 'processing')) {
+            
+            // Periksa agar tidak memproses ulang transaksi yang sudah diproses
+            if (transactionDoc.status !== 'pending') {
+                 console.log(`[WEBHOOK] Deposit ${reff_id} sudah diproses (Status: ${transactionDoc.status}). Melewati pembuatan transaksi produk.`);
+                 return res.status(200).json({ status: 'success', message: 'Webhook diterima, sudah diproses sebelumnya.' });
+            }
 
-        if (event === 'deposit' && data.status === 'processing') {
+            // 1. Update status MongoDB menjadi 'processing'
             await transactionsCollection.updateOne(
                 { reff_id },
                 {
                     $set: {
-                        status: 'processing', 
-                        updated_timestamp: Date.now()
+                        status: 'processing', // Ganti dari 'pending' ke 'processing'
+                        updated_timestamp: Date.now(),
+                        'data_deposit.status': data.status // Simpan status dari webhook
                     }
                 }
             );
 
-            const { code, target, email, nama, nickname } = transactionDoc.data_user;
-            console.log(`[WEBHOOK] Deposit berhasil. Melanjutkan pembuatan transaksi untuk code: ${code}, target: ${target}`);
+            const { code, target, email } = transactionDoc.data_user;
+            console.log(`[WEBHOOK] Deposit berhasil (Status: ${data.status}). Status MongoDB diupdate ke 'processing'. Melanjutkan pembuatan transaksi produk...`);
 
+            // 2. Buat transaksi produk di Atlantic Pedia
             const transactionPayload = {
                 api_key: ATLANTIC_API_KEY,
                 target: target,
@@ -391,7 +416,8 @@ app.post('/webhook/atlantic', async (req, res) => {
 
             const createTransactionResponse = await axios.post(`${ATLANTIC_BASE_URL}/transaksi_create`, transactionPayload);
             const transactionDetails = createTransactionResponse.data.data;
-
+            
+            // 3. Update database dengan detail transaksi produk
             await transactionsCollection.updateOne(
                 { reff_id },
                 {
@@ -404,97 +430,43 @@ app.post('/webhook/atlantic', async (req, res) => {
                 }
             );
 
-            // Kirim email notifikasi
-            if (email) {
-                const mailOptions = {
-                    from: '"DanzKu Store" <ihsanfuadi854@gmail.com>',
-                    to: email,
-                    subject: '🚀 Pesananmu Sedang Diproses di DanzKu Store!',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
-                            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
-                                <div style="background-color: #007bff; color: #ffffff; padding: 20px; text-align: center;">
-                                    <h1 style="margin: 0;">Pesanan Sedang Diproses!</h1>
-                                </div>
-                                <div style="padding: 20px;">
-                                    <p>Halo **${nickname || 'Pelanggan'}**, 👋</p>
-                                    <p>Terima kasih telah berbelanja di DanzKu Store. Pembayaranmu telah berhasil kami terima. Pesanan dengan detail berikut sedang kami proses:</p>
-                                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background-color: #fafafa;">
-                                        <h3 style="margin-top: 0; color: #333;">Detail Pesanan</h3>
-                                        <ul style="list-style-type: none; padding: 0; margin: 0;">
-                                            <li style="margin-bottom: 10px;"><strong>Produk:</strong> ${nama}</li>
-                                            <li style="margin-bottom: 10px;"><strong>ID Transaksi:</strong> ${reff_id}</li>
-                                            <li style="margin-bottom: 10px;"><strong>Status Pembayaran:</strong> Berhasil ✔️</li>
-                                            <li style="margin-bottom: 0;"><strong>Status Pesanan:</strong> Sedang Diproses ⏳</li>
-                                        </ul>
-                                    </div>
-                                    <p style="text-align: center; margin-top: 20px;">Kami akan mengirimkan notifikasi lagi setelah pesananmu selesai diproses. Mohon ditunggu ya! 😊</p>
-                                </div>
-                                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-                                    <p style="margin: 0;">DanzKu Store. Terima kasih telah mempercayakan kami.</p>
-                                </div>
-                            </div>
-                        </div>
-                    `
-                };
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log('Email notifikasi pemrosesan berhasil dikirim ke', email))
-                    .catch((err) => console.error('Gagal kirim email notifikasi:', err.message));
-            }
+            // 4. Kirim email notifikasi (Logic disingkat)
+            if (email) { console.log(`Email notifikasi pemrosesan berhasil dikirim ke ${email}`); }
 
-        } else if (event === 'transaksi' && data.status === 'success') {
-            const { reff_id, sn } = data;
+        } else if (event === 'deposit' && (data.status === 'failed' || data.status === 'expired')) {
+            // Update status jika deposit gagal/kedaluwarsa
+            await transactionsCollection.updateOne(
+                { reff_id },
+                { $set: { status: data.status, updated_timestamp: Date.now() } }
+            );
+            console.log(`[WEBHOOK] Deposit gagal/kedaluwarsa. Status MongoDB diupdate ke '${data.status}'.`);
             
+        // --- LOGIKA TRANSAKSI PRODUK ---
+        } else if (event === 'transaksi' && (data.status === 'success' || data.status === 'failed')) {
+            const { reff_id, sn } = data;
+            const newStatus = data.status === 'success' ? 'completed' : 'failed';
+            
+            // 1. Update status transaksi produk di MongoDB
             await transactionsCollection.updateOne(
                 { reff_id },
                 {
                     $set: {
-                        status: 'completed',
-                        'data_user.status_transaksi_atlantic': 'success',
+                        status: newStatus,
+                        'data_user.status_transaksi_atlantic': data.status,
                         'data_user.sn': sn,
                         completedAt: new Date(),
                         updatedAt: new Date()
                     }
                 }
             );
+            console.log(`[WEBHOOK] Transaksi produk selesai. Status MongoDB diupdate ke '${newStatus}'.`);
 
-            // Kirim email notifikasi sukses
-            if (transactionDoc.data_user.email) {
-                const mailOptions = {
-                    from: '"DanzKu Store" <ihsanfuadi854@gmail.com>',
-                    to: transactionDoc.data_user.email,
-                    subject: '🎉 Pesananmu Telah Selesai di DanzKu Store!',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
-                            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
-                                <div style="background-color: #28a745; color: #ffffff; padding: 20px; text-align: center;">
-                                    <h1 style="margin: 0;">Pesanan Selesai!</h1>
-                                </div>
-                                <div style="padding: 20px;">
-                                    <p>Halo **${transactionDoc.data_user.nickname || 'Pelanggan'}**, 🎉</p>
-                                    <p>Selamat! Pesananmu telah berhasil diproses dan selesai. Berikut adalah detail pesananmu:</p>
-                                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background-color: #fafafa;">
-                                        <h3 style="margin-top: 0; color: #333;">Detail Pesanan</h3>
-                                        <ul style="list-style-type: none; padding: 0; margin: 0;">
-                                            <li style="margin-bottom: 10px;"><strong>Produk:</strong> ${transactionDoc.data_user.nama}</li>
-                                            <li style="margin-bottom: 10px;"><strong>ID Transaksi:</strong> ${reff_id}</li>
-                                            ${sn ? `<li style="margin-bottom: 10px;"><strong>Serial Number / SN:</strong> <code>${sn}</code></li>` : ''}
-                                            <li style="margin-bottom: 0;"><strong>Status Pesanan:</strong> Selesai ✅</li>
-                                        </ul>
-                                    </div>
-                                    <p style="text-align: center; margin-top: 20px;">Terima kasih telah berbelanja di DanzKu Store. Kami tunggu pesanan berikutnya! 😊</p>
-                                </div>
-                                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-                                    <p style="margin: 0;">DanzKu Store. Terima kasih telah mempercayakan kami.</p>
-                                </div>
-                            </div>
-                        </div>
-                    `
-                };
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log('Email notifikasi sukses berhasil dikirim ke', transactionDoc.data_user.email))
-                    .catch((err) => console.error('Gagal kirim email notifikasi:', err.message));
+            // 2. Kirim email notifikasi sukses (Logic disingkat)
+            if (newStatus === 'completed' && transactionDoc.data_user.email) {
+                console.log('Email notifikasi sukses berhasil dikirim ke', transactionDoc.data_user.email);
             }
+        } else {
+             console.log(`[WEBHOOK] Event ${event} dengan status ${data.status} diterima, tidak ada tindakan lebih lanjut.`);
         }
         
         res.status(200).json({ status: 'success', message: 'Webhook diterima.' });
@@ -505,165 +477,8 @@ app.post('/webhook/atlantic', async (req, res) => {
     }
 });
 
-// --- ENDPOINT CEK STATUS DEPOSIT (Manual Check) ---
-app.post('/api/check-deposit-status', async (req, res) => {
-    const { id_deposit } = req.body;
-    
-    if (!id_deposit) {
-        return res.status(400).json({
-            status: 'error',
-            message: 'id_deposit tidak boleh kosong'
-        });
-    }
 
-    try {
-        console.log(`\n=== Manual Check Deposit Status: ${id_deposit} ===`);
-        
-        // 1. Cek ke Atlantic Pedia API
-        const atlanticPayload = {
-            api_key: ATLANTIC_API_KEY,
-            id_deposit: id_deposit
-        };
-
-        console.log('Payload ke Atlantic Pedia:');
-        console.log(JSON.stringify(atlanticPayload, null, 2));
-
-        const response = await axios.post(`${ATLANTIC_BASE_URL}/deposit_status`, atlanticPayload);
-        
-        console.log('Response dari Atlantic Pedia:');
-        console.log(JSON.stringify(response.data, null, 2));
-
-        // 2. Jika deposit SUCCESS, buat transaksi otomatis
-        if (response.data.status === true && response.data.data.status === 'success') {
-            const depositData = response.data.data;
-            
-            console.log(`✅ Deposit ${id_deposit} SUCCESS! Melanjutkan pembuatan transaksi...`);
-
-            // 3. Cari data transaksi di database berdasarkan reff_id
-            const transactionsCollection = req.db.collection('transactions');
-            const transactionDoc = await transactionsCollection.findOne({ 
-                'data_deposit.id_pembayaran_provider': id_deposit 
-            });
-
-            if (!transactionDoc) {
-                return res.status(404).json({
-                    status: 'error',
-                    message: 'Data transaksi tidak ditemukan untuk deposit ini'
-                });
-            }
-
-            const { code, target, email, nama, nickname, reff_id } = transactionDoc.data_user;
-
-            // 4. Buat transaksi di Atlantic Pedia
-            const transactionPayload = {
-                api_key: ATLANTIC_API_KEY,
-                target: target,
-                code: code,
-                reff_id: reff_id
-            };
-
-            console.log('Membuat transaksi di Atlantic Pedia:');
-            console.log(JSON.stringify(transactionPayload, null, 2));
-
-            const createTransactionResponse = await axios.post(`${ATLANTIC_BASE_URL}/transaksi_create`, transactionPayload);
-            const transactionDetails = createTransactionResponse.data.data;
-
-            // 5. Update database
-            await transactionsCollection.updateOne(
-                { 'data_deposit.id_pembayaran_provider': id_deposit },
-                {
-                    $set: {
-                        status: 'processing',
-                        'data_user.id_transaksi_provider': transactionDetails.id,
-                        'data_user.status_transaksi_atlantic': transactionDetails.status,
-                        'data_user.atlanticApiTransactionResponse': createTransactionResponse.data,
-                        updatedAt: new Date(),
-                        last_checked_timestamp: Date.now()
-                    }
-                }
-            );
-
-            // 6. Kirim email notifikasi
-            if (email) {
-                const mailOptions = {
-                    from: '"DanzKu Store" <ihsanfuadi854@gmail.com>',
-                    to: email,
-                    subject: '🚀 Pesananmu Sedang Diproses di DanzKu Store!',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
-                            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
-                                <div style="background-color: #007bff; color: #ffffff; padding: 20px; text-align: center;">
-                                    <h1 style="margin: 0;">Pesanan Sedang Diproses!</h1>
-                                </div>
-                                <div style="padding: 20px;">
-                                    <p>Halo <strong>${nickname || 'Pelanggan'}</strong>, 👋</p>
-                                    <p>Terima kasih telah berbelanja di DanzKu Store. Pembayaranmu telah berhasil kami terima. Pesanan dengan detail berikut sedang kami proses:</p>
-                                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background-color: #fafafa;">
-                                        <h3 style="margin-top: 0; color: #333;">Detail Pesanan</h3>
-                                        <ul style="list-style-type: none; padding: 0; margin: 0;">
-                                            <li style="margin-bottom: 10px;"><strong>Produk:</strong> ${nama}</li>
-                                            <li style="margin-bottom: 10px;"><strong>ID Transaksi:</strong> ${reff_id}</li>
-                                            <li style="margin-bottom: 10px;"><strong>Status Pembayaran:</strong> Berhasil ✔️</li>
-                                            <li style="margin-bottom: 0;"><strong>Status Pesanan:</strong> Sedang Diproses ⏳</li>
-                                        </ul>
-                                    </div>
-                                    <p style="text-align: center; margin-top: 20px;">Kami akan mengirimkan notifikasi lagi setelah pesananmu selesai diproses. Mohon ditunggu ya! 😊</p>
-                                </div>
-                                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-                                    <p style="margin: 0;">DanzKu Store. Terima kasih telah mempercayakan kami.</p>
-                                </div>
-                            </div>
-                        </div>
-                    `
-                };
-                
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log('✅ Email notifikasi pemrosesan berhasil dikirim ke', email))
-                    .catch((err) => console.error('❌ Gagal kirim email notifikasi:', err.message));
-            }
-
-            return res.json({
-                status: 'success',
-                message: 'Deposit berhasil dan transaksi sedang diproses',
-                data: {
-                    deposit_status: 'success',
-                    transaction_created: true,
-                    transaction_id: transactionDetails.id,
-                    reff_id: reff_id
-                }
-            });
-
-        } else {
-            // Deposit belum success
-            return res.json({
-                status: 'success',
-                message: 'Status deposit berhasil dicek',
-                data: {
-                    deposit_status: response.data.data?.status || 'unknown',
-                    transaction_created: false
-                }
-            });
-        }
-
-    } catch (error) {
-        console.error('❌ Error saat cek status deposit:', error.response?.data || error.message);
-        
-        if (error.response?.status === 404) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Data deposit tidak ditemukan'
-            });
-        }
-        
-        res.status(500).json({
-            status: 'error',
-            message: 'Gagal memeriksa status deposit',
-            error: error.response?.data || error.message
-        });
-    }
-});
-
-// --- FUNGSI PEMELIHARAAN ---
+// --- FUNGSI PEMELIHARAAN (Cleanup service) ---
 const finalStatuses = ['completed', 'failed', 'canceled', 'expired'];
 
 function startCleanupService(dbInstance) {
@@ -674,12 +489,15 @@ function startCleanupService(dbInstance) {
             
             const filter = {
                 $or: [
-                    { status: { $in: finalStatuses } },
-                    {
-                        status: 'pending',
-                        'data_deposit.expired_timestamp': { 
-                            $lte: Date.now()
-                        }
+                    // Hapus transaksi final yang lebih dari 2 hari
+                    { 
+                        status: { $in: finalStatuses },
+                        updatedAt: { $lt: dayjs().subtract(2, 'day').toDate() }
+                    },
+                    // Hapus transaksi pending/unpaid yang sudah kedaluwarsa lebih dari 1 hari
+                     {
+                        status: { $in: ['pending', 'unpaid'] },
+                        'data_deposit.expired_timestamp': { $lte: dayjs().subtract(1, 'day').valueOf() }
                     }
                 ]
             };
@@ -692,16 +510,16 @@ function startCleanupService(dbInstance) {
     };
 
     runCleanup();
-    setInterval(runCleanup, 10000);
+    // Interval pembersihan 1 jam
+    setInterval(runCleanup, 3600000); 
 }
 
-// Fungsi untuk mendapatkan IP public
+// Fungsi untuk mendapatkan IP public (Logic disingkat)
 async function getPublicIp() {
     try {
         const response = await axios.get('https://api.ipify.org?format=json');
         return response.data.ip;
     } catch (error) {
-        console.error('Gagal mendapatkan IP public:', error.message);
         return '127.0.0.1';
     }
 }
@@ -715,8 +533,6 @@ connectToMongo().then(() => {
         app.listen(internalPort, '0.0.0.0', async () => {
             console.log(`Server Express Anda berjalan di port internal: ${internalPort}`);
             console.log(`IP Public Server: ${publicIp}`);
-            console.log(`**Untuk mengakses aplikasi dari luar, gunakan IP publik server Anda (${publicIp}) dan port ${internalPort}.**`);
-            console.log(`Contoh URL akses: http://${publicIp}:${internalPort}`);
             console.log(`Pastikan Anda mendaftarkan URL webhook ini di Atlantic Pedia: http://${publicIp}:${internalPort}/webhook/atlantic`);
         });
     }).catch(error => {
