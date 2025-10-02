@@ -240,6 +240,49 @@ app.get('/deposit-methods', async (req, res) => {
     }
 });
 
+app.get('/api/transaction/:reff_id', async (req, res) => {
+    const { reff_id } = req.params;
+    try {
+        // Gunakan req.db dari middleware
+        const transactionsCollection = req.db.collection('transactions');
+        const transactionData = await transactionsCollection.findOne({ reff_id });
+        
+        if (!transactionData) {
+            console.log(`[GET /api/transaction/${reff_id}] Transaksi tidak ditemukan di MongoDB.`);
+            return res.status(404).json({
+                status: 'error',
+                code: 404,
+                message: 'Transaksi tidak ditemukan. Pastikan reff_id sudah benar.'
+            });
+        }
+
+        const enhancedData = {
+            ...transactionData,
+            createdAt: transactionData.created_timestamp ? 
+                new Date(transactionData.created_timestamp) : null,
+            data_deposit: {
+                ...transactionData.data_deposit,
+                expired_at: transactionData.data_deposit.expired_timestamp ? 
+                    new Date(transactionData.data_deposit.expired_timestamp) : null,
+                expired_timestamp: transactionData.data_deposit.expired_timestamp
+            }
+        };
+
+        const { _id, ...filteredData } = enhancedData;
+        res.json({
+            status: 'success',
+            data: filteredData
+        });
+    } catch (error) {
+        console.error('Gagal mengambil transaksi dari MongoDB:', error);
+        res.status(500).json({
+            status: 'error',
+            code: 500,
+            message: 'Terjadi kesalahan saat mengambil transaksi',
+            error: error.message
+        });
+    }
+});
 
 // Endpoint untuk membuat deposit (Pembayaran)
 app.post('/api/deposit/create', async (req, res) => {
