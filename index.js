@@ -15,13 +15,12 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // --- KONFIGURASI MONGODB ---
-// Ganti dengan URI MongoDB Anda yang sebenarnya
 const uri = "mongodb+srv://Sanz:Gombong123@cluster0.elarb3c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const client = new MongoClient(uri);
 
 // Fungsi untuk generate UUID
 function uuidv4() {
-    return crypto.randomUUID();
+  return crypto.randomUUID();
 }
 
 // Variabel global untuk koneksi
@@ -93,16 +92,16 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: 'ihsanfuadi854@gmail.com', // Ganti dengan email Anda
-        pass: 'gsnl zcyw vefn kvce'      // Ganti dengan App Password Anda
+        user: 'ihsanfuadi854@gmail.com',
+        pass: 'gsnl zcyw vefn kvce'
     }
 });
 
 // --- KONFIGURASI ATLANTIC PEDIA API ---
-const ATLANTIC_API_KEY = 'mkbtL4HPQ8Gp0Vw4rezoPXzhzN85y5gf'; // Ganti dengan API Key Anda
+const ATLANTIC_API_KEY = 'mkbtL4HPQ8Gp0Vw4rezoPXzhzN85y5gf';
 const ATLANTIC_BASE_URL = 'http://167.172.83.48:1041/layanan';
 
-// Middleware untuk logging permintaan
+// Middleware untuk mencatat semua permintaan dengan body JSON
 app.use((req, res, next) => {
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
@@ -117,6 +116,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API Endpoints ---
+// Modifikasi semua endpoint untuk menggunakan req.db bukan variabel global db
 
 // Endpoint untuk mendapatkan daftar produk (Contoh endpoint)
 app.post('/produk', async (req, res) => {
@@ -634,12 +634,13 @@ function startCleanupService(dbInstance) {
     setInterval(runCleanup, 3600000); 
 }
 
-// Fungsi untuk mendapatkan IP public (Logic disingkat)
+// Fungsi untuk mendapatkan IP public
 async function getPublicIp() {
     try {
         const response = await axios.get('https://api.ipify.org?format=json');
         return response.data.ip;
     } catch (error) {
+        console.error('Gagal mendapatkan IP public:', error.message);
         return '127.0.0.1';
     }
 }
@@ -653,6 +654,8 @@ connectToMongo().then(() => {
         app.listen(internalPort, '0.0.0.0', async () => {
             console.log(`Server Express Anda berjalan di port internal: ${internalPort}`);
             console.log(`IP Public Server: ${publicIp}`);
+            console.log(`**Untuk mengakses aplikasi dari luar, gunakan IP publik server Anda (${publicIp}) dan port ${internalPort}.**`);
+            console.log(`Contoh URL akses: http://${publicIp}:${internalPort}`);
             console.log(`Pastikan Anda mendaftarkan URL webhook ini di Atlantic Pedia: http://${publicIp}:${internalPort}/webhook/atlantic`);
         });
     }).catch(error => {
